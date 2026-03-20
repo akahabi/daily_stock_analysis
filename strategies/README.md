@@ -39,6 +39,19 @@ required_tools:
   - get_daily_history
   - analyze_trend
 
+# 可选别名（用于 /ask 等自然语言技能选择）
+aliases: [我的战法, 我的模型]
+
+# 以下元数据用于驱动默认行为（可选）
+# default_active: 是否属于默认激活技能集
+# default_router: 是否属于路由 fallback 技能集
+# default_priority: 默认展示/排序优先级，数值越小越靠前
+# market_regimes: 该技能优先适配的市场状态标签
+default_active: true
+default_router: false
+default_priority: 100
+market_regimes: [trending_up]
+
 # 策略详细说明（自然语言，支持 Markdown 格式）
 instructions: |
   **我的策略名称**
@@ -74,7 +87,7 @@ instructions: |
 除了本目录（内置策略），你还可以通过环境变量指定额外的自定义策略目录：
 
 ```env
-AGENT_STRATEGY_DIR=./my_strategies
+AGENT_SKILL_DIR=./my_skills
 ```
 
 系统会同时加载内置策略和自定义策略。如果名称冲突，自定义策略覆盖内置策略。

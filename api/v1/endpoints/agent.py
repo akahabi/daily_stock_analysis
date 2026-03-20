@@ -103,14 +103,25 @@ async def get_skills():
     from src.agent.skills.defaults import get_primary_default_skill_id
 
     skill_manager = get_skill_manager(config)
+    available_skills = sorted(
+        [
+            skill
+            for skill in skill_manager.list_skills()
+            if getattr(skill, "user_invocable", True)
+        ],
+        key=lambda skill: (
+            int(getattr(skill, "default_priority", 100)),
+            skill.display_name,
+            skill.name,
+        ),
+    )
     skills = [
-        SkillInfo(id=skill_id, name=skill.display_name, description=skill.description)
-        for skill_id, skill in skill_manager._skills.items()
-        if getattr(skill, "user_invocable", True)
+        SkillInfo(id=skill.name, name=skill.display_name, description=skill.description)
+        for skill in available_skills
     ]
     return SkillsResponse(
         skills=skills,
-        default_skill_id=get_primary_default_skill_id(skill.id for skill in skills),
+        default_skill_id=get_primary_default_skill_id(available_skills),
     )
 
 

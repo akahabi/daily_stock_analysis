@@ -776,20 +776,20 @@ class TestSkillActivation(unittest.TestCase):
         self.assertEqual(len(active), 1)
         self.assertEqual(active[0].name, "dragon_head")
 
-    def test_empty_config_activates_all_in_pipeline(self):
-        """Empty agent_skills config should activate ALL strategies loaded from YAML."""
+    def test_empty_config_uses_default_active_skills(self):
+        """Empty agent_skills config should activate the metadata-driven default skill set."""
         from src.agent.skills.base import SkillManager
+        from src.agent.skills.defaults import get_default_active_skill_ids
 
         skill_manager = SkillManager()
-        expected = _builtin_strategy_names()
         count = skill_manager.load_builtin_strategies()
-        self.assertEqual(count, len(expected), "Should load all built-in strategies from YAML")
+        self.assertEqual(count, len(_builtin_strategy_names()), "Should load all built-in strategies from YAML")
 
-        # Simulate pipeline logic: empty config -> activate all
-        skill_manager.activate(["all"])
+        default_ids = get_default_active_skill_ids(skill_manager.list_skills())
+        skill_manager.activate(default_ids)
 
         active = skill_manager.list_active_skills()
-        self.assertEqual(len(active), len(expected))
+        self.assertEqual({skill.name for skill in active}, set(default_ids))
 
     def test_sentiment_score_parsed_from_dashboard(self):
         """Verify _agent_result_to_analysis_result handles non-numeric sentiment_score."""

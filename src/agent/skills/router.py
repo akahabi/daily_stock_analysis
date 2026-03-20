@@ -15,13 +15,11 @@ from typing import List, Optional
 
 from src.agent.protocols import AgentContext
 from src.agent.skills.defaults import (
-    REGIME_SKILL_IDS,
     get_default_router_skill_ids,
+    get_regime_skill_ids,
 )
 
 logger = logging.getLogger(__name__)
-
-_DEFAULT_SKILLS = tuple(get_default_router_skill_ids())
 
 
 class SkillRouter:
@@ -43,17 +41,28 @@ class SkillRouter:
             logger.info("[SkillRouter] manual mode — using skills: %s", selected)
             return selected
 
+        available_skills = self._get_available_skills()
+        skill_catalog = available_skills or None
+        available_ids = {skill.name for skill in available_skills}
         regime = self._detect_regime(ctx)
         if regime:
-            candidates = REGIME_SKILL_IDS.get(regime, list(_DEFAULT_SKILLS))
-            available = self._get_available_ids()
-            selected = [skill_id for skill_id in candidates if skill_id in available][:max_count]
+            selected = get_regime_skill_ids(
+                regime,
+                skill_catalog,
+                max_count=max_count,
+                available_skill_ids=available_ids or None,
+            )
             if selected:
                 logger.info("[SkillRouter] regime=%s -> skills: %s", regime, selected)
                 return selected
 
-        logger.info("[SkillRouter] using default skills")
-        return list(_DEFAULT_SKILLS[:max_count])
+        default_skills = get_default_router_skill_ids(
+            skill_catalog,
+            max_count=max_count,
+            available_skill_ids=available_ids or None,
+        )
+        logger.info("[SkillRouter] using default skills: %s", default_skills)
+        return default_skills
 
     def select_strategies(
         self,
@@ -101,18 +110,22 @@ class SkillRouter:
 
     @staticmethod
     def _get_available_ids() -> set:
+        return {skill.name for skill in SkillRouter._get_available_skills()}
+
+    @staticmethod
+    def _get_available_skills() -> list:
         try:
             from src.agent.factory import _SKILL_MANAGER_PROTOTYPE
 
             if _SKILL_MANAGER_PROTOTYPE is not None:
-                return {skill.name for skill in _SKILL_MANAGER_PROTOTYPE.list_skills()}
+                return list(_SKILL_MANAGER_PROTOTYPE.list_skills())
 
             from src.agent.factory import get_skill_manager
 
             sm = get_skill_manager()
-            return {skill.name for skill in sm.list_skills()}
+            return list(sm.list_skills())
         except Exception:
-            return set(_DEFAULT_SKILLS)
+            return []
 
     @classmethod
     def _get_manual_skills(cls, max_count: int) -> List[str]:
@@ -129,14 +142,20 @@ class SkillRouter:
         except Exception:
             configured = []
 
-        available = cls._get_available_ids()
+        available_skills = cls._get_available_skills()
+        skill_catalog = available_skills or None
+        available = {skill.name for skill in available_skills}
         selected = [skill_id for skill_id in configured if skill_id in available][:max_count]
         if selected:
             return selected
 
-        fallback = [skill_id for skill_id in _DEFAULT_SKILLS if skill_id in available][:max_count]
-        return fallback or list(_DEFAULT_SKILLS[:max_count])
+        return get_default_router_skill_ids(
+            skill_catalog,
+            max_count=max_count,
+            available_skill_ids=available or None,
+        )
 
 
 StrategyRouter = SkillRouter
-_DEFAULT_STRATEGIES = _DEFAULT_SKILLS
+_DEFAULT_STRATEGIES = tuple(get_default_router_skill_ids())
+_DEFAULT_SKILLS = _DEFAULT_STRATEGIES

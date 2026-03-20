@@ -11,30 +11,12 @@ This module centralises:
 
 from __future__ import annotations
 
+from functools import lru_cache
+from pathlib import Path
 from typing import Dict, Iterable, List, Optional
 
 
-DEFAULT_ACTIVE_SKILL_IDS: tuple[str, ...] = (
-    "bull_trend",
-    "ma_golden_cross",
-    "volume_breakout",
-    "shrink_pullback",
-)
-
-DEFAULT_ROUTER_SKILL_IDS: tuple[str, ...] = (
-    "bull_trend",
-    "shrink_pullback",
-)
-
-PRIMARY_DEFAULT_SKILL_ID = DEFAULT_ACTIVE_SKILL_IDS[0]
-
-REGIME_SKILL_IDS: Dict[str, List[str]] = {
-    "trending_up": ["bull_trend", "volume_breakout", "ma_golden_cross"],
-    "trending_down": ["shrink_pullback", "bottom_volume"],
-    "sideways": ["box_oscillation", "shrink_pullback"],
-    "volatile": ["chan_theory", "wave_theory"],
-    "sector_hot": ["dragon_head", "emotion_cycle"],
-}
+_BUILTIN_SKILLS_DIR = Path(__file__).resolve().parent.parent.parent.parent / "strategies"
 
 SKILL_AGENT_PREFIX = "skill_"
 LEGACY_STRATEGY_AGENT_PREFIX = "strategy_"
@@ -88,32 +70,210 @@ following default risk controls as the shared baseline:
 """
 
 
-def get_default_active_skill_ids(max_count: Optional[int] = None) -> List[str]:
-    skills = list(DEFAULT_ACTIVE_SKILL_IDS)
-    if max_count is None:
-        return skills
-    return skills[:max_count]
+@lru_cache(maxsize=1)
+def _load_builtin_skill_catalog() -> tuple[object, ...]:
+    try:
+        from src.agent.skills.base import load_skills_from_directory
+
+        return tuple(load_skills_from_directory(_BUILTIN_SKILLS_DIR))
+    except Exception:
+        return ()
 
 
-def get_default_router_skill_ids(max_count: Optional[int] = None) -> List[str]:
-    skills = list(DEFAULT_ROUTER_SKILL_IDS)
-    if max_count is None:
-        return skills
-    return skills[:max_count]
+def _coerce_priority(value: object, default: int = 100) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
-def get_primary_default_skill_id(available_skill_ids: Optional[Iterable[str]] = None) -> str:
+def _normalize_available_ids(available_skill_ids: Optional[Iterable[str]]) -> List[str]:
+    normalized: List[str] = []
     if available_skill_ids is None:
-        return PRIMARY_DEFAULT_SKILL_ID
+        return normalized
+    for skill_id in available_skill_ids:
+        if isinstance(skill_id, str):
+            cleaned = skill_id.strip()
+            if cleaned and cleaned not in normalized:
+                normalized.append(cleaned)
+    return normalized
 
-    available = [skill_id for skill_id in available_skill_ids if isinstance(skill_id, str) and skill_id]
-    if not available:
-        return ""
 
-    for skill_id in DEFAULT_ACTIVE_SKILL_IDS:
-        if skill_id in available:
-            return skill_id
-    return available[0]
+def _normalize_skill_inputs(
+    skills: Optional[Iterable[object]],
+    available_skill_ids: Optional[Iterable[str]] = None,
+) -> tuple[List[object], List[str]]:
+    normalized_available = _normalize_available_ids(available_skill_ids)
+
+    if skills is None:
+        return list(_load_builtin_skill_catalog()), normalized_available
+
+    skill_pool: List[object] = []
+    for item in skills:
+        if isinstance(item, str):
+            cleaned = item.strip()
+            if cleaned and cleaned not in normalized_available:
+                normalized_available.append(cleaned)
+            continue
+        if item is not None:
+            skill_pool.append(item)
+    return skill_pool, normalized_available
+
+
+def _sort_skill_pool(skills: Iterable[object]) -> List[object]:
+    return sorted(
+        skills,
+        key=lambda skill: (
+            _coerce_priority(getattr(skill, "default_priority", 100)),
+            str(getattr(skill, "display_name", "") or getattr(skill, "name", "")),
+            str(getattr(skill, "name", "")),
+        ),
+    )
+
+
+def _iter_candidate_skills(
+    skills: Optional[Iterable[object]],
+    *,
+    available_skill_ids: Optional[Iterable[str]] = None,
+    user_invocable_only: bool = True,
+) -> tuple[List[object], List[str]]:
+    skill_pool, normalized_available = _normalize_skill_inputs(skills, available_skill_ids)
+    available_lookup = set(normalized_available)
+
+    candidates: List[object] = []
+    for skill in _sort_skill_pool(skill_pool):
+        skill_id = str(getattr(skill, "name", "")).strip()
+        if not skill_id:
+            continue
+        if user_invocable_only and not bool(getattr(skill, "user_invocable", True)):
+            continue
+        if available_lookup and skill_id not in available_lookup:
+            continue
+        candidates.append(skill)
+
+    return candidates, normalized_available
+
+
+def _slice_skill_ids(skill_ids: List[str], max_count: Optional[int]) -> List[str]:
+    if max_count is None:
+        return skill_ids
+    return skill_ids[:max_count]
+
+
+def get_default_active_skill_ids(
+    skills: Optional[Iterable[object]] = None,
+    max_count: Optional[int] = None,
+    available_skill_ids: Optional[Iterable[str]] = None,
+) -> List[str]:
+    candidates, normalized_available = _iter_candidate_skills(
+        skills,
+        available_skill_ids=available_skill_ids,
+    )
+    preferred = [
+        str(getattr(skill, "name", "")).strip()
+        for skill in candidates
+        if bool(getattr(skill, "default_active", False))
+    ]
+    if preferred:
+        return _slice_skill_ids(preferred, max_count)
+
+    fallback = [str(getattr(skill, "name", "")).strip() for skill in candidates]
+    if fallback:
+        return _slice_skill_ids(fallback, max_count)
+
+    return _slice_skill_ids(normalized_available, max_count)
+
+
+def get_default_router_skill_ids(
+    skills: Optional[Iterable[object]] = None,
+    max_count: Optional[int] = None,
+    available_skill_ids: Optional[Iterable[str]] = None,
+) -> List[str]:
+    candidates, normalized_available = _iter_candidate_skills(
+        skills,
+        available_skill_ids=available_skill_ids,
+    )
+    preferred = [
+        str(getattr(skill, "name", "")).strip()
+        for skill in candidates
+        if bool(getattr(skill, "default_router", False))
+    ]
+    if preferred:
+        return _slice_skill_ids(preferred, max_count)
+
+    return get_default_active_skill_ids(
+        candidates,
+        max_count=max_count,
+        available_skill_ids=normalized_available,
+    )
+
+
+def get_regime_skill_ids(
+    regime: str,
+    skills: Optional[Iterable[object]] = None,
+    max_count: Optional[int] = None,
+    available_skill_ids: Optional[Iterable[str]] = None,
+) -> List[str]:
+    candidates, normalized_available = _iter_candidate_skills(
+        skills,
+        available_skill_ids=available_skill_ids,
+    )
+    regime_name = (regime or "").strip().lower()
+    if regime_name:
+        matched = []
+        for skill in candidates:
+            market_regimes = getattr(skill, "market_regimes", None) or []
+            normalized_regimes = {
+                str(item).strip().lower()
+                for item in market_regimes
+                if str(item).strip()
+            }
+            if regime_name in normalized_regimes:
+                matched.append(str(getattr(skill, "name", "")).strip())
+        if matched:
+            return _slice_skill_ids(matched, max_count)
+
+    return get_default_router_skill_ids(
+        candidates,
+        max_count=max_count,
+        available_skill_ids=normalized_available,
+    )
+
+
+def get_primary_default_skill_id(
+    skills: Optional[Iterable[object]] = None,
+    available_skill_ids: Optional[Iterable[str]] = None,
+) -> str:
+    defaults = get_default_active_skill_ids(
+        skills,
+        max_count=1,
+        available_skill_ids=available_skill_ids,
+    )
+    if defaults:
+        return defaults[0]
+
+    _, normalized_available = _normalize_skill_inputs(skills, available_skill_ids)
+    return normalized_available[0] if normalized_available else ""
+
+
+def _build_regime_skill_ids(skills: Iterable[object]) -> Dict[str, List[str]]:
+    regime_map: Dict[str, List[str]] = {}
+    for skill in _sort_skill_pool(skills):
+        skill_id = str(getattr(skill, "name", "")).strip()
+        if not skill_id:
+            continue
+        for regime in getattr(skill, "market_regimes", None) or []:
+            regime_name = str(regime).strip().lower()
+            if not regime_name:
+                continue
+            regime_map.setdefault(regime_name, []).append(skill_id)
+    return regime_map
+
+
+DEFAULT_ACTIVE_SKILL_IDS: tuple[str, ...] = tuple(get_default_active_skill_ids())
+DEFAULT_ROUTER_SKILL_IDS: tuple[str, ...] = tuple(get_default_router_skill_ids())
+PRIMARY_DEFAULT_SKILL_ID = get_primary_default_skill_id()
+REGIME_SKILL_IDS: Dict[str, List[str]] = _build_regime_skill_ids(_load_builtin_skill_catalog())
 
 
 def build_skill_agent_name(skill_id: str) -> str:

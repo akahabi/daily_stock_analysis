@@ -46,7 +46,7 @@ _CATEGORY_DEFINITIONS: List[Dict[str, Any]] = [
     {
         "category": "agent",
         "title": "Agent",
-        "description": "Agent mode and strategy settings.",
+        "description": "Agent mode and skill settings.",
         "display_order": 55,
     },
     {
@@ -1518,21 +1518,21 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     },
     "AGENT_SKILLS": {
         "title": "Agent Skills",
-        "description": "Comma-separated list of active agent strategies. When set to specific strategies (not 'all'), scheduled tasks will automatically use the Agent pipeline.",
+        "description": "Comma-separated list of active agent skills. Leave empty to use the default-active skill set declared in skill metadata. When set to specific skills (not 'all'), scheduled tasks will automatically use the Agent pipeline.",
         "category": "agent",
         "data_type": "string",
         "ui_control": "text",
         "is_sensitive": False,
         "is_required": False,
         "is_editable": True,
-        "default_value": "bull_trend,ma_golden_cross,volume_breakout,shrink_pullback",
+        "default_value": "",
         "options": [],
         "validation": {},
         "display_order": 30,
     },
     "AGENT_SKILL_DIR": {
         "title": "Agent Skill Dir",
-        "description": "Directory containing agent skill YAML files.",
+        "description": "Directory containing agent skill definition files (YAML or SKILL.md bundles).",
         "category": "agent",
         "data_type": "string",
         "ui_control": "text",

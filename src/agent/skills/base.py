@@ -40,12 +40,17 @@ class Skill:
         core_rules: List of core trading rule numbers this strategy relates to (1-7).
         required_tools: List of tool names this skill depends on.
         allowed_tools: Optional allowlist metadata from SKILL.md frontmatter.
+        aliases: Optional alias phrases used by NL selectors / bot commands.
         enabled: Whether this skill is currently active.
         source: Origin of this skill — "builtin" or file path of a custom definition.
         entrypoint: Definition file path (YAML or SKILL.md).
         bundle_dir: Skill bundle directory when loaded from SKILL.md.
         disable_model_invocation: Whether the model should avoid auto-invoking this skill.
         user_invocable: Whether the skill should be exposed in user-facing selectors.
+        default_active: Whether this skill participates in the default activation set.
+        default_router: Whether this skill participates in router fallback selection.
+        default_priority: Ordering hint for defaults / selectors (lower comes first).
+        market_regimes: Optional market regime tags used by the skill router.
         execution_context: Inline/fork execution hint from frontmatter.
         subagent_type: Optional subagent type hint from frontmatter.
         preferred_model: Optional model hint from frontmatter.
@@ -58,12 +63,17 @@ class Skill:
     core_rules: List[int] = field(default_factory=list)
     required_tools: List[str] = field(default_factory=list)
     allowed_tools: List[str] = field(default_factory=list)
+    aliases: List[str] = field(default_factory=list)
     enabled: bool = False
     source: str = "builtin"
     entrypoint: str = ""
     bundle_dir: str = ""
     disable_model_invocation: bool = False
     user_invocable: bool = True
+    default_active: bool = False
+    default_router: bool = False
+    default_priority: int = 100
+    market_regimes: List[str] = field(default_factory=list)
     execution_context: str = "inline"
     subagent_type: str = ""
     preferred_model: str = ""
@@ -80,6 +90,29 @@ def _coerce_string_list(value: object) -> List[str]:
     if isinstance(value, list):
         return [str(item).strip() for item in value if str(item).strip()]
     return [str(value).strip()] if str(value).strip() else []
+
+
+def _coerce_bool(value: object, default: bool = False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+    return bool(value)
+
+
+def _coerce_int(value: object, default: int = 100) -> int:
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def _parse_skill_frontmatter(raw_text: str) -> tuple[Dict[str, object], str]:
@@ -149,12 +182,20 @@ def load_skill_from_yaml(filepath: Union[str, Path]) -> Skill:
         core_rules=data.get("core_rules", []) or [],
         required_tools=data.get("required_tools", []) or [],
         allowed_tools=_coerce_string_list(data.get("allowed_tools")),
+        aliases=_coerce_string_list(data.get("aliases")),
         enabled=False,
         source=str(filepath),
         entrypoint=str(filepath),
         bundle_dir=str(filepath.parent),
         disable_model_invocation=bool(data.get("disable_model_invocation", False)),
         user_invocable=bool(data.get("user_invocable", True)),
+        default_active=_coerce_bool(data.get("default_active"), False),
+        default_router=_coerce_bool(data.get("default_router"), False),
+        default_priority=_coerce_int(data.get("default_priority"), 100),
+        market_regimes=(
+            _coerce_string_list(data.get("market_regimes"))
+            or _coerce_string_list(data.get("market-regimes"))
+        ),
         execution_context=str(data.get("context", "inline")).strip() or "inline",
         subagent_type=str(data.get("agent", "")).strip(),
         preferred_model=str(data.get("model", "")).strip(),
@@ -199,12 +240,29 @@ def load_skill_from_markdown(filepath: Union[str, Path]) -> Skill:
         core_rules=metadata.get("core_rules", []) or [],
         required_tools=required_tools,
         allowed_tools=allowed_tools,
+        aliases=_coerce_string_list(metadata.get("aliases")),
         enabled=False,
         source=str(filepath),
         entrypoint=str(filepath),
         bundle_dir=str(filepath.parent),
-        disable_model_invocation=bool(metadata.get("disable-model-invocation", False)),
-        user_invocable=bool(metadata.get("user-invocable", True)),
+        disable_model_invocation=_coerce_bool(metadata.get("disable-model-invocation"), False),
+        user_invocable=_coerce_bool(metadata.get("user-invocable"), True),
+        default_active=_coerce_bool(
+            metadata.get("default-active", metadata.get("default_active")),
+            False,
+        ),
+        default_router=_coerce_bool(
+            metadata.get("default-router", metadata.get("default_router")),
+            False,
+        ),
+        default_priority=_coerce_int(
+            metadata.get("default-priority", metadata.get("default_priority")),
+            100,
+        ),
+        market_regimes=(
+            _coerce_string_list(metadata.get("market-regimes"))
+            or _coerce_string_list(metadata.get("market_regimes"))
+        ),
         execution_context=str(metadata.get("context", "inline")).strip() or "inline",
         subagent_type=str(metadata.get("agent", "")).strip(),
         preferred_model=str(metadata.get("model", "")).strip(),

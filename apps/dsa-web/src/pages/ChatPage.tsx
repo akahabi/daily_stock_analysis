@@ -132,12 +132,14 @@ const ChatPage: React.FC = () => {
       setSkills(res.skills);
       const defaultId =
         res.default_skill_id ||
-        res.skills.find((s) => s.id === 'bull_trend')?.id ||
         res.skills[0]?.id ||
         '';
       setSelectedSkill(defaultId);
     }).catch(() => {});
   }, []);
+
+  const availableSkillIds = new Set(skills.map((skill) => skill.id));
+  const quickQuestions = QUICK_QUESTIONS.filter((question) => availableSkillIds.size === 0 || availableSkillIds.has(question.skill));
 
   const handleStartNewChat = useCallback(() => {
     followUpContextRef.current = null;
@@ -658,7 +660,7 @@ const ChatPage: React.FC = () => {
                   将调用实时数据工具为您生成决策报告。
                 </p>
                 <div className="flex flex-wrap gap-2 justify-center max-w-lg">
-                  {QUICK_QUESTIONS.map((q, i) => (
+                  {quickQuestions.map((q, i) => (
                     <button
                       key={i}
                       onClick={() => handleQuickQuestion(q)}

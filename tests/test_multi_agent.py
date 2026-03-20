@@ -266,8 +266,14 @@ class TestStrategyRouter(unittest.TestCase):
         result = router.select_strategies(ctx, max_count=2)
         self.assertEqual(len(result), 2)
 
-    @patch("src.agent.strategies.router.StrategyRouter._get_routing_mode", return_value="manual")
-    @patch("src.agent.strategies.router.StrategyRouter._get_available_ids", return_value={"chan_theory", "wave_theory"})
+    @patch("src.agent.skills.router.StrategyRouter._get_routing_mode", return_value="manual")
+    @patch(
+        "src.agent.skills.router.StrategyRouter._get_available_skills",
+        return_value=[
+            SimpleNamespace(name="chan_theory"),
+            SimpleNamespace(name="wave_theory"),
+        ],
+    )
     @patch("src.config.get_config", return_value=SimpleNamespace(agent_skills=["chan_theory", "wave_theory"]))
     def test_manual_mode_uses_configured_agent_skills(self, _mock_config, _mock_available, _mock):
         from src.agent.strategies.router import StrategyRouter
@@ -276,8 +282,14 @@ class TestStrategyRouter(unittest.TestCase):
         result = router.select_strategies(ctx)
         self.assertEqual(result, ["chan_theory", "wave_theory"])
 
-    @patch("src.agent.strategies.router.StrategyRouter._get_routing_mode", return_value="manual")
-    @patch("src.agent.strategies.router.StrategyRouter._get_available_ids", return_value={"bull_trend", "shrink_pullback"})
+    @patch("src.agent.skills.router.StrategyRouter._get_routing_mode", return_value="manual")
+    @patch(
+        "src.agent.skills.router.StrategyRouter._get_available_skills",
+        return_value=[
+            SimpleNamespace(name="bull_trend", default_router=True, default_priority=10),
+            SimpleNamespace(name="shrink_pullback", default_router=True, default_priority=40),
+        ],
+    )
     @patch("src.config.get_config", return_value=SimpleNamespace(agent_skills=[]))
     def test_manual_mode_falls_back_to_defaults_when_no_skills_configured(self, _mock_config, _mock_available, _mock):
         from src.agent.strategies.router import StrategyRouter, _DEFAULT_STRATEGIES

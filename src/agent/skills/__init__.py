@@ -15,9 +15,14 @@ from src.agent.skills.base import (
 )
 from src.agent.skills.defaults import (
     DEFAULT_ACTIVE_SKILL_IDS,
+    DEFAULT_ROUTER_SKILL_IDS,
     PRIMARY_DEFAULT_SKILL_ID,
     CORE_TRADING_SKILL_POLICY_ZH,
     TECHNICAL_SKILL_RULES_EN,
+    get_default_active_skill_ids,
+    get_default_router_skill_ids,
+    get_primary_default_skill_id,
+    get_regime_skill_ids,
 )
 
 __all__ = [
@@ -27,9 +32,14 @@ __all__ = [
     "SkillRouter",
     "SkillAggregator",
     "DEFAULT_ACTIVE_SKILL_IDS",
+    "DEFAULT_ROUTER_SKILL_IDS",
     "PRIMARY_DEFAULT_SKILL_ID",
     "CORE_TRADING_SKILL_POLICY_ZH",
     "TECHNICAL_SKILL_RULES_EN",
+    "get_default_active_skill_ids",
+    "get_default_router_skill_ids",
+    "get_primary_default_skill_id",
+    "get_regime_skill_ids",
     "load_skill_from_markdown",
     "load_skill_from_yaml",
     "load_skills_from_directory",

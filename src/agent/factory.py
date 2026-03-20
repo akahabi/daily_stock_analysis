@@ -136,7 +136,9 @@ def build_agent_executor(config=None, skills: Optional[List[str]] = None):
     registry = get_tool_registry()
     skill_manager = get_skill_manager(config)
 
-    skills_to_activate = skills if skills is not None else (getattr(config, "agent_skills", None) or get_default_active_skill_ids())
+    configured_skills = getattr(config, "agent_skills", None) or None
+    default_skills = get_default_active_skill_ids(skill_manager.list_skills())
+    skills_to_activate = skills if skills is not None else (configured_skills or default_skills)
     skill_manager.activate(skills_to_activate if skills_to_activate else ["all"])
     logger.info("[AgentFactory] Activated skills: %s (arch=%s)", skills_to_activate, arch)
 

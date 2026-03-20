@@ -488,6 +488,37 @@ instructions: 用自然语言描述的策略内容
         finally:
             os.unlink(tmp_path)
 
+    def test_load_yaml_metadata_fields(self):
+        """YAML metadata should populate aliases/default flags/router tags."""
+        import tempfile, os
+        from src.agent.skills.base import load_skill_from_yaml
+
+        yaml_content = """
+name: metadata_skill
+display_name: 元数据技能
+description: 带有默认元数据的技能
+aliases: [别名一, 别名二]
+default_active: true
+default_router: true
+default_priority: 15
+market_regimes: [trending_up, volatile]
+instructions: |
+  这是一个测试技能。
+"""
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False, encoding='utf-8') as f:
+            f.write(yaml_content)
+            tmp_path = f.name
+
+        try:
+            skill = load_skill_from_yaml(tmp_path)
+            self.assertEqual(skill.aliases, ["别名一", "别名二"])
+            self.assertTrue(skill.default_active)
+            self.assertTrue(skill.default_router)
+            self.assertEqual(skill.default_priority, 15)
+            self.assertEqual(skill.market_regimes, ["trending_up", "volatile"])
+        finally:
+            os.unlink(tmp_path)
+
     def test_load_yaml_missing_required_fields(self):
         """YAML missing required fields should raise ValueError."""
         import tempfile, os
@@ -580,6 +611,40 @@ When explaining code, always include an ASCII diagram.
         finally:
             shutil.rmtree(tmpdir)
 
+    def test_load_skill_bundle_metadata_defaults(self):
+        """SKILL.md frontmatter should populate metadata-driven default fields."""
+        import shutil
+        import tempfile
+
+        from src.agent.skills.base import load_skill_from_markdown
+
+        tmpdir = Path(tempfile.mkdtemp())
+        try:
+            skill_dir = tmpdir / "rotation-scout"
+            skill_dir.mkdir(parents=True)
+            (skill_dir / "SKILL.md").write_text(
+                """---
+name: rotation-scout
+description: Track sector rotation leaders
+aliases: [轮动, 龙头侦察]
+default-active: true
+default-router: true
+default-priority: 12
+market-regimes: [sector_hot]
+---
+Track hot sectors and leading stocks.
+""",
+                encoding="utf-8",
+            )
+            skill = load_skill_from_markdown(skill_dir / "SKILL.md")
+            self.assertEqual(skill.aliases, ["轮动", "龙头侦察"])
+            self.assertTrue(skill.default_active)
+            self.assertTrue(skill.default_router)
+            self.assertEqual(skill.default_priority, 12)
+            self.assertEqual(skill.market_regimes, ["sector_hot"])
+        finally:
+            shutil.rmtree(tmpdir)
+
     def test_load_skill_bundle_defaults_name_and_description(self):
         """SKILL.md should default name to directory and description to first paragraph."""
         import shutil
@@ -649,3 +714,42 @@ instructions: 按照我的规则分析龙头股
         for skill in manager.list_skills():
             self.assertEqual(skill.source, "builtin",
                              f"Strategy {skill.name} should have source='builtin'")
+
+
+class TestSkillDefaultResolution(unittest.TestCase):
+    """Test metadata-driven default skill resolution helpers."""
+
+    def test_default_helpers_follow_metadata(self):
+        from src.agent.skills.defaults import (
+            get_default_active_skill_ids,
+            get_default_router_skill_ids,
+            get_primary_default_skill_id,
+            get_regime_skill_ids,
+        )
+
+        skills = [
+            Skill(name="gamma", display_name="Gamma", description="g", instructions="i", default_priority=30),
+            Skill(name="alpha", display_name="Alpha", description="a", instructions="i", default_active=True, default_router=True, default_priority=10, market_regimes=["trending_up"]),
+            Skill(name="beta", display_name="Beta", description="b", instructions="i", default_active=True, default_priority=20, market_regimes=["volatile"]),
+        ]
+
+        self.assertEqual(get_default_active_skill_ids(skills), ["alpha", "beta"])
+        self.assertEqual(get_default_router_skill_ids(skills), ["alpha"])
+        self.assertEqual(get_primary_default_skill_id(skills), "alpha")
+        self.assertEqual(get_regime_skill_ids("volatile", skills), ["beta"])
+
+    def test_default_helpers_fall_back_to_sorted_user_invocable_skills(self):
+        from src.agent.skills.defaults import (
+            get_default_active_skill_ids,
+            get_default_router_skill_ids,
+            get_primary_default_skill_id,
+        )
+
+        skills = [
+            Skill(name="zeta", display_name="Zeta", description="z", instructions="i", default_priority=80),
+            Skill(name="eta", display_name="Eta", description="e", instructions="i", default_priority=20),
+        ]
+
+        self.assertEqual(get_default_active_skill_ids(skills), ["eta", "zeta"])
+        self.assertEqual(get_default_router_skill_ids(skills), ["eta", "zeta"])
+        self.assertEqual(get_primary_default_skill_id(skills), "eta")
