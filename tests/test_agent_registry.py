@@ -743,7 +743,7 @@ class TestSkillDefaultResolution(unittest.TestCase):
             Skill(name="beta", display_name="Beta", description="b", instructions="i", default_active=True, default_priority=20, market_regimes=["volatile"]),
         ]
 
-        self.assertEqual(get_default_active_skill_ids(skills), ["alpha", "beta"])
+        self.assertEqual(get_default_active_skill_ids(skills), ["alpha"])
         self.assertEqual(get_default_router_skill_ids(skills), ["alpha"])
         self.assertEqual(get_primary_default_skill_id(skills), "alpha")
         self.assertEqual(get_regime_skill_ids("volatile", skills), ["beta"])
@@ -760,8 +760,8 @@ class TestSkillDefaultResolution(unittest.TestCase):
             Skill(name="eta", display_name="Eta", description="e", instructions="i", default_priority=20),
         ]
 
-        self.assertEqual(get_default_active_skill_ids(skills), ["eta", "zeta"])
-        self.assertEqual(get_default_router_skill_ids(skills), ["eta", "zeta"])
+        self.assertEqual(get_default_active_skill_ids(skills), ["eta"])
+        self.assertEqual(get_default_router_skill_ids(skills), ["eta"])
         self.assertEqual(get_primary_default_skill_id(skills), "eta")
 
 

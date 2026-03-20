@@ -49,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - 🧭 **Unavailable Agent settings hidden from Web UI** — Deep Research / Event Monitor controls are now treated as compatibility-only metadata in the current branch and are removed from the Settings page to avoid exposing non-functional toggles.
 - 🔧 **Skill compatibility hardening** — `allowed-tools` from `SKILL.md` now stays as bundle metadata instead of leaking into runtime tool selection, `/api/v1/agent/strategies` again preserves the legacy `strategies` payload shape, explicit `skills: []` clears stale chat context, and skill-level backtest rollups stay neutral until real per-skill stats exist.
 - 🎯 **显式策略选择不再叠加默认多头基线** — Agent 仅在未显式选择策略时才注入默认趋势交易基线；当用户或配置明确指定某个策略 skill 时，分析将只遵循所选策略，不再偷偷附带旧的 bull-trend 默认哲学。
+- 🧭 **隐式默认策略收敛为单一多头默认值** — 当 `AGENT_SKILLS` 留空且请求未显式传入策略时，后端不再同时激活多个 `default_active=true` 的 skill，而是统一回落到主默认策略 skill（当前为 `bull_trend`），让 API / Bot / Web 对“默认策略”的理解保持一致。
 
 ### 文档
 

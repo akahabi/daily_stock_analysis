@@ -1518,7 +1518,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
     },
     "AGENT_SKILLS": {
         "title": "Agent Strategies",
-        "description": "Comma-separated list of active agent strategy skills. Leave empty to use the default-active skill set declared in skill metadata. When set to specific skills (not 'all'), scheduled tasks will automatically use the Agent pipeline.",
+        "description": "Comma-separated list of active agent strategy skills. Leave empty to use the primary default strategy skill declared in metadata (built-in default: bull_trend). When set to specific skills (not 'all'), scheduled tasks will automatically use the Agent pipeline.",
         "category": "agent",
         "data_type": "string",
         "ui_control": "text",

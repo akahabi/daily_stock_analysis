@@ -138,7 +138,7 @@
 | `AGENT_MODE` | 啟用 Agent 策略問股模式（內部統一命名為 skill，`true`/`false`，預設 `false`） | 可選 |
 | `AGENT_LITELLM_MODEL` | Agent 專用主模型（可選）；留空時繼承 `LITELLM_MODEL`，無 provider 前綴時按 `openai/<model>` 解析 | 可選 |
 | `AGENT_MAX_STEPS` | Agent 最大推理步數（預設 `10`） | 可選 |
-| `AGENT_SKILLS` | 逗號分隔的策略技能 id。留空時使用 skill 元資料宣告的預設激活集；使用 `all` 可啟用所有已載入策略技能。 | 可選 |
+| `AGENT_SKILLS` | 逗號分隔的策略技能 id。留空時使用 metadata 宣告的主預設策略 skill（內建預設為 `bull_trend`）；使用 `all` 可啟用所有已載入策略技能。 | 可選 |
 | `AGENT_SKILL_DIR` | 自訂策略技能目錄（預設沿用內建 `strategies/` 相容路徑） | 可選 |
 
 #### 3. 啟用 Actions

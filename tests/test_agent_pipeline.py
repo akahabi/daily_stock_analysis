@@ -10,6 +10,8 @@ Covers:
 """
 
 import json
+import importlib
+import types
 import unittest
 import sys
 import os
@@ -110,110 +112,84 @@ class TestAgentFactorySkillBaseline(unittest.TestCase):
             user_invocable=True,
         )
 
-    @patch('src.agent.executor.AgentExecutor')
-    @patch('src.agent.llm_adapter.LLMToolAdapter')
-    @patch('src.agent.factory.get_skill_manager')
-    @patch('src.agent.factory.get_tool_registry')
-    def test_explicit_request_disables_default_skill_policy(
-        self,
-        mock_get_tool_registry,
-        mock_get_skill_manager,
-        _mock_llm_adapter,
-        mock_executor_cls,
-    ):
-        from src.agent.factory import build_agent_executor
-
+    def _run_factory_case(self, config, *, request_skills, skill_catalog, instructions):
         skill_manager = MagicMock()
-        skill_manager.list_skills.return_value = [
-            self._make_skill("bull_trend", default_active=True, default_priority=10),
-            self._make_skill("chan_theory", default_priority=20),
-        ]
-        skill_manager.get_skill_instructions.return_value = "chan_theory instructions"
-        mock_get_skill_manager.return_value = skill_manager
-        mock_get_tool_registry.return_value = MagicMock()
-        mock_executor_cls.return_value = MagicMock()
+        skill_manager.list_skills.return_value = skill_catalog
+        skill_manager.get_skill_instructions.return_value = instructions
 
+        fake_llm_module = types.ModuleType("src.agent.llm_adapter")
+        fake_llm_module.LLMToolAdapter = MagicMock(return_value=MagicMock())
+        fake_executor_module = types.ModuleType("src.agent.executor")
+        fake_executor_cls = MagicMock(return_value=MagicMock())
+        fake_executor_module.AgentExecutor = fake_executor_cls
+
+        with patch.dict(sys.modules, {
+            "litellm": MagicMock(),
+            "src.agent.llm_adapter": fake_llm_module,
+            "src.agent.executor": fake_executor_module,
+        }):
+            factory_module = importlib.import_module("src.agent.factory")
+
+            with patch.object(factory_module, "get_skill_manager", return_value=skill_manager), \
+                 patch.object(factory_module, "get_tool_registry", return_value=MagicMock()):
+                factory_module.build_agent_executor(config, skills=request_skills)
+
+        return fake_executor_cls.call_args.kwargs, skill_manager
+
+    def test_explicit_request_disables_default_skill_policy(self):
         config = SimpleNamespace(
             agent_arch="single",
             agent_skills=[],
             agent_max_steps=10,
             agent_orchestrator_timeout_s=600,
         )
+        kwargs, skill_manager = self._run_factory_case(
+            config,
+            request_skills=["chan_theory"],
+            skill_catalog=[
+                self._make_skill("bull_trend", default_active=True, default_priority=10),
+                self._make_skill("chan_theory", default_priority=20),
+            ],
+            instructions="chan_theory instructions",
+        )
 
-        build_agent_executor(config, skills=["chan_theory"])
-
-        kwargs = mock_executor_cls.call_args.kwargs
         self.assertEqual(kwargs["default_skill_policy"], "")
         skill_manager.activate.assert_called_once_with(["chan_theory"])
 
-    @patch('src.agent.executor.AgentExecutor')
-    @patch('src.agent.llm_adapter.LLMToolAdapter')
-    @patch('src.agent.factory.get_skill_manager')
-    @patch('src.agent.factory.get_tool_registry')
-    def test_configured_skills_disable_default_skill_policy(
-        self,
-        mock_get_tool_registry,
-        mock_get_skill_manager,
-        _mock_llm_adapter,
-        mock_executor_cls,
-    ):
-        from src.agent.factory import build_agent_executor
-
-        skill_manager = MagicMock()
-        skill_manager.list_skills.return_value = [
-            self._make_skill("bull_trend", default_active=True, default_priority=10),
-            self._make_skill("wave_theory", default_priority=20),
-        ]
-        skill_manager.get_skill_instructions.return_value = "wave_theory instructions"
-        mock_get_skill_manager.return_value = skill_manager
-        mock_get_tool_registry.return_value = MagicMock()
-        mock_executor_cls.return_value = MagicMock()
-
+    def test_configured_skills_disable_default_skill_policy(self):
         config = SimpleNamespace(
             agent_arch="single",
             agent_skills=["wave_theory"],
             agent_max_steps=10,
             agent_orchestrator_timeout_s=600,
         )
+        kwargs, skill_manager = self._run_factory_case(
+            config,
+            request_skills=None,
+            skill_catalog=[
+                self._make_skill("bull_trend", default_active=True, default_priority=10),
+                self._make_skill("wave_theory", default_priority=20),
+            ],
+            instructions="wave_theory instructions",
+        )
 
-        build_agent_executor(config)
-
-        kwargs = mock_executor_cls.call_args.kwargs
         self.assertEqual(kwargs["default_skill_policy"], "")
         skill_manager.activate.assert_called_once_with(["wave_theory"])
 
-    @patch('src.agent.executor.AgentExecutor')
-    @patch('src.agent.llm_adapter.LLMToolAdapter')
-    @patch('src.agent.factory.get_skill_manager')
-    @patch('src.agent.factory.get_tool_registry')
-    def test_implicit_default_run_keeps_default_skill_policy(
-        self,
-        mock_get_tool_registry,
-        mock_get_skill_manager,
-        _mock_llm_adapter,
-        mock_executor_cls,
-    ):
-        from src.agent.factory import build_agent_executor
-
-        skill_manager = MagicMock()
-        skill_manager.list_skills.return_value = [
-            self._make_skill("bull_trend", default_active=True, default_priority=10),
-        ]
-        skill_manager.get_skill_instructions.return_value = "bull_trend instructions"
-        mock_get_skill_manager.return_value = skill_manager
-        mock_get_tool_registry.return_value = MagicMock()
-        mock_executor_cls.return_value = MagicMock()
-
+    def test_implicit_default_run_keeps_default_skill_policy(self):
         config = SimpleNamespace(
             agent_arch="single",
             agent_skills=[],
             agent_max_steps=10,
             agent_orchestrator_timeout_s=600,
         )
+        kwargs, skill_manager = self._run_factory_case(
+            config,
+            request_skills=None,
+            skill_catalog=[self._make_skill("bull_trend", default_active=True, default_priority=10)],
+            instructions="bull_trend instructions",
+        )
 
-        build_agent_executor(config)
-
-        kwargs = mock_executor_cls.call_args.kwargs
         self.assertIn("严进策略", kwargs["default_skill_policy"])
         skill_manager.activate.assert_called_once_with(["bull_trend"])
 
@@ -901,8 +877,8 @@ class TestSkillActivation(unittest.TestCase):
         self.assertEqual(len(active), 1)
         self.assertEqual(active[0].name, "dragon_head")
 
-    def test_empty_config_uses_default_active_skills(self):
-        """Empty agent_skills config should activate the metadata-driven default skill set."""
+    def test_empty_config_uses_primary_default_skill(self):
+        """Empty agent_skills config should activate the primary default skill only."""
         from src.agent.skills.base import SkillManager
         from src.agent.skills.defaults import get_default_active_skill_ids
 
@@ -911,10 +887,11 @@ class TestSkillActivation(unittest.TestCase):
         self.assertEqual(count, len(_builtin_strategy_names()), "Should load all built-in strategies from YAML")
 
         default_ids = get_default_active_skill_ids(skill_manager.list_skills())
+        self.assertEqual(default_ids, ["bull_trend"])
         skill_manager.activate(default_ids)
 
         active = skill_manager.list_active_skills()
-        self.assertEqual({skill.name for skill in active}, set(default_ids))
+        self.assertEqual([skill.name for skill in active], ["bull_trend"])
 
     def test_sentiment_score_parsed_from_dashboard(self):
         """Verify _agent_result_to_analysis_result handles non-numeric sentiment_score."""

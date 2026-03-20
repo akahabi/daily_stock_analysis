@@ -179,6 +179,22 @@ def _slice_skill_ids(skill_ids: List[str], max_count: Optional[int]) -> List[str
     return skill_ids[:max_count]
 
 
+def _pick_primary_default_skill_id(candidates: List[object]) -> str:
+    preferred = [
+        str(getattr(skill, "name", "")).strip()
+        for skill in candidates
+        if bool(getattr(skill, "default_active", False))
+    ]
+    if preferred:
+        return preferred[0]
+
+    fallback = [str(getattr(skill, "name", "")).strip() for skill in candidates]
+    if fallback:
+        return fallback[0]
+
+    return ""
+
+
 def get_default_active_skill_ids(
     skills: Optional[Iterable[object]] = None,
     max_count: Optional[int] = None,
@@ -188,19 +204,11 @@ def get_default_active_skill_ids(
         skills,
         available_skill_ids=available_skill_ids,
     )
-    preferred = [
-        str(getattr(skill, "name", "")).strip()
-        for skill in candidates
-        if bool(getattr(skill, "default_active", False))
-    ]
-    if preferred:
-        return _slice_skill_ids(preferred, max_count)
+    default_skill_id = _pick_primary_default_skill_id(candidates)
+    if default_skill_id:
+        return _slice_skill_ids([default_skill_id], max_count)
 
-    fallback = [str(getattr(skill, "name", "")).strip() for skill in candidates]
-    if fallback:
-        return _slice_skill_ids(fallback, max_count)
-
-    return _slice_skill_ids(normalized_available, max_count)
+    return _slice_skill_ids(normalized_available[:1], max_count)
 
 
 def get_default_router_skill_ids(
@@ -263,16 +271,8 @@ def get_primary_default_skill_id(
     skills: Optional[Iterable[object]] = None,
     available_skill_ids: Optional[Iterable[str]] = None,
 ) -> str:
-    defaults = get_default_active_skill_ids(
-        skills,
-        max_count=1,
-        available_skill_ids=available_skill_ids,
-    )
-    if defaults:
-        return defaults[0]
-
-    _, normalized_available = _normalize_skill_inputs(skills, available_skill_ids)
-    return normalized_available[0] if normalized_available else ""
+    defaults = get_default_active_skill_ids(skills, max_count=1, available_skill_ids=available_skill_ids)
+    return defaults[0] if defaults else ""
 
 
 def _build_regime_skill_ids(skills: Iterable[object]) -> Dict[str, List[str]]:
