@@ -36,7 +36,7 @@ class SkillAgent(BaseAgent):
         self._skill = self._load_skill(resolved_skill_id)
 
         if self._skill:
-            tool_names = self._skill.required_tools or self._skill.allowed_tools
+            tool_names = self._skill.required_tools
             if tool_names:
                 self.tool_names = list(tool_names)
 
@@ -47,9 +47,7 @@ class SkillAgent(BaseAgent):
             from src.agent.factory import get_skill_manager
 
             sm = get_skill_manager()
-            for skill in sm.list_skills():
-                if skill.name == skill_id:
-                    return skill
+            return sm.get(skill_id)
         except Exception as exc:
             logger.warning("[SkillAgent] failed to load skill '%s': %s", skill_id, exc)
         return None

@@ -1591,7 +1591,7 @@ _FIELD_DEFINITIONS: Dict[str, Dict[str, Any]] = {
             {"label": "Full", "value": "full"},
             {"label": "Specialist", "value": "specialist"},
         ],
-        "validation": {},
+        "validation": {"enum": ["quick", "standard", "full", "specialist", "strategy", "skill"]},
         "display_order": 61,
     },
     "AGENT_ORCHESTRATOR_TIMEOUT_S": {

@@ -247,17 +247,11 @@ class BacktestService:
         """Return skill-like summary metrics for Agent memory consumers.
 
         The current backtest storage layer only persists overall / per-stock rollups.
-        Until skill-tagged backtest summaries are available, use the overall rollup
-        so memory and calibration features can still consume real historical metrics.
+        Re-using the overall rollup here would fabricate skill-specific performance
+        and mislead auto-weighting. Until real skill-tagged summaries exist, return
+        ``None`` so downstream callers fall back to neutral weighting.
         """
-        summary = self.get_global_summary(eval_window_days=eval_window_days)
-        if summary is None:
-            return None
-
-        normalized = dict(summary)
-        normalized["skill_id"] = skill_id
-        normalized["source_scope"] = summary.get("scope", "overall")
-        return normalized
+        return None
 
     def get_strategy_summary(self, strategy_id: str, *, eval_window_days: Optional[int] = None) -> Optional[Dict[str, Any]]:
         """Compatibility wrapper for legacy strategy-based callers."""

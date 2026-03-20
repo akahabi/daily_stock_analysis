@@ -69,6 +69,11 @@ class SkillsResponse(BaseModel):
     default_skill_id: str = ""
 
 
+class StrategiesResponse(BaseModel):
+    strategies: List[SkillInfo]
+    default_strategy_id: str = ""
+
+
 class AgentModelDeployment(BaseModel):
     deployment_id: str
     model: str
@@ -93,12 +98,7 @@ async def get_agent_models():
     )
 
 
-@router.get("/skills", response_model=SkillsResponse)
-async def get_skills():
-    """
-    Get available agent skills.
-    """
-    config = get_config()
+def _build_skills_response(config) -> SkillsResponse:
     from src.agent.factory import get_skill_manager
     from src.agent.skills.defaults import get_primary_default_skill_id
 
@@ -125,10 +125,22 @@ async def get_skills():
     )
 
 
-@router.get("/strategies", response_model=SkillsResponse, include_in_schema=False)
+@router.get("/skills", response_model=SkillsResponse)
+async def get_skills():
+    """
+    Get available agent skills.
+    """
+    return _build_skills_response(get_config())
+
+
+@router.get("/strategies", response_model=StrategiesResponse, include_in_schema=False)
 async def get_strategies():
     """Compatibility alias for legacy clients."""
-    return await get_skills()
+    payload = _build_skills_response(get_config())
+    return StrategiesResponse(
+        strategies=payload.skills,
+        default_strategy_id=payload.default_skill_id,
+    )
 
 @router.post("/chat", response_model=ChatResponse)
 async def agent_chat(request: ChatRequest):
@@ -144,13 +156,13 @@ async def agent_chat(request: ChatRequest):
     
     try:
         skills = request.effective_skills
-        executor = _build_executor(config, skills)
+        executor = _build_executor(config, skills or None)
 
         # Pass explicit skills into context for the orchestrator.
         # Direct assignment so caller-provided skills always take precedence
         # over any stale value carried in the context dict.
         ctx = dict(request.context or {})
-        if skills:
+        if skills is not None:
             ctx["skills"] = skills
 
         # Offload the blocking call to a thread to avoid blocking the event loop.
@@ -285,7 +297,7 @@ async def agent_chat_stream(request: ChatRequest):
     # Direct assignment so caller-provided skills always take precedence.
     skills = request.effective_skills
     stream_ctx = dict(request.context or {})
-    if skills:
+    if skills is not None:
         stream_ctx["skills"] = skills
 
     def progress_callback(event: dict):
@@ -297,7 +309,7 @@ async def agent_chat_stream(request: ChatRequest):
 
     def run_sync():
         try:
-            executor = _build_executor(config, skills)
+            executor = _build_executor(config, skills or None)
             result = executor.chat(
                 message=request.message,
                 session_id=session_id,

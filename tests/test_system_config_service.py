@@ -226,6 +226,12 @@ class SystemConfigServiceTestCase(unittest.TestCase):
         self.assertTrue(validation["valid"])
         self.assertEqual(validation["issues"], [])
 
+    def test_validate_accepts_legacy_agent_orchestrator_mode_alias(self) -> None:
+        validation = self.service.validate(items=[{"key": "AGENT_ORCHESTRATOR_MODE", "value": "strategy"}])
+
+        self.assertTrue(validation["valid"])
+        self.assertEqual(validation["issues"], [])
+
     @patch.object(
         Config,
         "_parse_litellm_yaml",

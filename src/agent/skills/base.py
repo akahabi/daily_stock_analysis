@@ -476,5 +476,4 @@ class SkillManager:
         tools: set = set()
         for s in self.list_active_skills():
             tools.update(s.required_tools)
-            tools.update(s.allowed_tools)
         return list(tools)

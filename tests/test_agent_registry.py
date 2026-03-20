@@ -14,6 +14,7 @@ import unittest
 import sys
 import os
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -330,6 +331,15 @@ class TestSkillManager(unittest.TestCase):
         required = self.manager.get_required_tools()
         self.assertIn("tool_a", required)
         self.assertNotIn("tool_b", required)
+
+    def test_get_required_tools_ignores_allowed_tools_metadata(self):
+        s1 = _make_skill("s1", enabled=True)
+        s1.required_tools = ["tool_a"]
+        s1.allowed_tools = ["Read", "Grep"]
+        self.manager.register(s1)
+
+        required = self.manager.get_required_tools()
+        self.assertEqual(required, ["tool_a"])
 
 
 # ============================================================
@@ -753,3 +763,23 @@ class TestSkillDefaultResolution(unittest.TestCase):
         self.assertEqual(get_default_active_skill_ids(skills), ["eta", "zeta"])
         self.assertEqual(get_default_router_skill_ids(skills), ["eta", "zeta"])
         self.assertEqual(get_primary_default_skill_id(skills), "eta")
+
+
+class TestSkillAgent(unittest.TestCase):
+    def test_skill_agent_uses_required_tools_only(self):
+        from src.agent.skills.skill_agent import SkillAgent
+
+        skill = Skill(
+            name="bundle_skill",
+            display_name="Bundle Skill",
+            description="desc",
+            instructions="do work",
+            required_tools=["analyze_trend"],
+            allowed_tools=["Read", "Grep"],
+        )
+
+        with patch("src.agent.factory.get_skill_manager") as mock_get_skill_manager:
+            mock_get_skill_manager.return_value.get.return_value = skill
+            agent = SkillAgent(skill_id="bundle_skill", tool_registry=MagicMock(), llm_adapter=MagicMock())
+
+        self.assertEqual(agent.tool_names, ["analyze_trend"])

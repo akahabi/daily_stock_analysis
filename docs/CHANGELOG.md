@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - 🤖 **Agent timeout and config hardening** — `AGENT_ORCHESTRATOR_TIMEOUT_S` now also protects the legacy single-agent ReAct loop, parallel tool batches stop waiting once the remaining budget is exhausted, and invalid numeric `.env` values fall back to safe defaults with warnings instead of crashing startup.
 - 🌐 **CORS wildcard + credentials compatibility** — `CORS_ALLOW_ALL=true` no longer combines `allow_origins=["*"]` with credentialed requests, avoiding browser-side cross-origin failures in demo/development setups.
 - 🧭 **Unavailable Agent settings hidden from Web UI** — Deep Research / Event Monitor controls are now treated as compatibility-only metadata in the current branch and are removed from the Settings page to avoid exposing non-functional toggles.
+- 🔧 **Skill compatibility hardening** — `allowed-tools` from `SKILL.md` now stays as bundle metadata instead of leaking into runtime tool selection, `/api/v1/agent/strategies` again preserves the legacy `strategies` payload shape, explicit `skills: []` clears stale chat context, and skill-level backtest rollups stay neutral until real per-skill stats exist.
 
 ### 文档
 

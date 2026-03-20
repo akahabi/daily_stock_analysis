@@ -244,11 +244,11 @@ class TestAgentRunStats(unittest.TestCase):
 
 
 # ============================================================
-# SkillRouter
+# Legacy StrategyRouter Compatibility
 # ============================================================
 
 class TestStrategyRouter(unittest.TestCase):
-    """Test skill router selection logic."""
+    """Test the legacy StrategyRouter alias for SkillRouter."""
 
     def test_user_requested_strategies_take_priority(self):
         from src.agent.strategies.router import StrategyRouter
