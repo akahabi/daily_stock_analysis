@@ -16,7 +16,7 @@ import time
 import uuid
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from typing import List, Dict, Any, Optional, Tuple
 
 import pandas as pd
@@ -38,7 +38,11 @@ from src.search_service import SearchService
 from src.services.social_sentiment_service import SocialSentimentService
 from src.enums import ReportType
 from src.stock_analyzer import StockTrendAnalyzer, TrendAnalysisResult
-from src.core.trading_calendar import get_market_for_stock, is_market_open
+from src.core.trading_calendar import (
+    get_effective_trading_date,
+    get_market_for_stock,
+    is_market_open,
+)
 from data_provider.us_index_mapping import is_us_stock_code
 from bot.models import BotMessage
 
@@ -135,7 +139,7 @@ class StockAnalysisPipeline:
         获取并保存单只股票数据
         
         断点续传逻辑：
-        1. 检查数据库是否已有今日数据
+        1. 检查数据库是否已有最新可复用交易日数据
         2. 如果有且不强制刷新，则跳过网络请求
         3. 否则从数据源获取并保存
         
@@ -151,16 +155,13 @@ class StockAnalysisPipeline:
             # 首先获取股票名称
             stock_name = self.fetcher_manager.get_stock_name(code)
 
-            today = date.today()
-            # 注意：这里用自然日 date.today() 做“断点续传”判断。
-            # 若在周末/节假日/非交易日运行，或机器时区不在中国，可能出现：
-            # - 数据库已有最新交易日数据但仍会重复拉取（has_today_data 返回 False）
-            # - 或在跨日/时区偏移时误判“今日已有数据”
-            # 该行为目前保留（按需求不改逻辑），但如需更严谨可改为“最新交易日/数据源最新日期”判断。
-            
-            # 断点续传检查：如果今日数据已存在，跳过
-            if not force_refresh and self.db.has_today_data(code, today):
-                logger.info(f"{stock_name}({code}) 今日数据已存在，跳过获取（断点续传）")
+            target_date = self._resolve_resume_target_date(code)
+
+            # 断点续传检查：如果最新可复用交易日的数据已存在，则跳过
+            if not force_refresh and self.db.has_today_data(code, target_date):
+                logger.info(
+                    f"{stock_name}({code}) {target_date} 数据已存在，跳过获取（断点续传）"
+                )
                 return True, None
 
             # 从数据源获取数据
@@ -1011,6 +1012,16 @@ class StockAnalysisPipeline:
         }
 
     @staticmethod
+    def _resolve_resume_target_date(
+        code: str, current_time: Optional[datetime] = None
+    ) -> date:
+        """
+        Resolve the trading date used by checkpoint/resume checks.
+        """
+        market = get_market_for_stock(code)
+        return get_effective_trading_date(market, current_time=current_time)
+
+    @staticmethod
     def _safe_to_dict(value: Any) -> Optional[Dict[str, Any]]:
         """
         安全转换为字典
@@ -1273,8 +1284,12 @@ class StockAnalysisPipeline:
         
         # dry-run 模式下，数据获取成功即视为成功
         if dry_run:
-            # 检查哪些股票的数据今天已存在
-            success_count = sum(1 for code in stock_codes if self.db.has_today_data(code))
+            # 检查哪些股票的最新可复用交易日数据已存在
+            success_count = sum(
+                1
+                for code in stock_codes
+                if self.db.has_today_data(code, self._resolve_resume_target_date(code))
+            )
             fail_count = len(stock_codes) - success_count
         else:
             success_count = len(results)

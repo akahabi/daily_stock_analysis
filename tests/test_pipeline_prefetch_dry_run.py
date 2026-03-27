@@ -6,8 +6,9 @@ Regression tests for prefetch behavior in StockAnalysisPipeline.run().
 import os
 import sys
 import unittest
+from datetime import date
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -50,6 +51,27 @@ class TestPipelinePrefetchBehavior(unittest.TestCase):
 
         pipeline.fetcher_manager.prefetch_stock_names.assert_called_once_with(
             ["000001"], use_bulk=False
+        )
+
+    def test_run_dry_run_counts_existing_data_by_effective_trading_date(self):
+        pipeline = self._build_pipeline(process_result=None)
+        pipeline._resolve_resume_target_date = MagicMock(
+            side_effect=[date(2026, 3, 27), date(2026, 3, 26)]
+        )
+        pipeline.db.has_today_data.side_effect = [True, False]
+
+        pipeline.run(
+            stock_codes=["600519", "AAPL"],
+            dry_run=True,
+            send_notification=False,
+        )
+
+        self.assertEqual(
+            pipeline.db.has_today_data.call_args_list,
+            [
+                call("600519", date(2026, 3, 27)),
+                call("AAPL", date(2026, 3, 26)),
+            ],
         )
 
 
