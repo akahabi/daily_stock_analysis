@@ -198,6 +198,23 @@ def test_sanitize_llm_log_preview_redacts_single_quoted_credential_fields():
     assert "hunter2" not in preview
 
 
+@pytest.mark.parametrize(
+    ("raw_preview", "expected_preview"),
+    [
+        ("password='abc,def'", "password='[REDACTED]'"),
+        ('password="abc;def"', 'password="[REDACTED]"'),
+        ("password='abc def'", "password='[REDACTED]'"),
+    ],
+)
+def test_sanitize_llm_log_preview_redacts_entire_quoted_assignment_values(raw_preview, expected_preview):
+    preview = _sanitize_llm_log_preview(raw_preview)
+
+    assert preview == expected_preview
+    assert "abc,def" not in preview
+    assert "abc;def" not in preview
+    assert "abc def" not in preview
+
+
 def test_analyze_logs_actual_model_used_in_response_metadata(caplog, monkeypatch):
     configured_model = "gemini/gemini-2.5-flash"
     actual_model = "openai/gpt-4.1-mini"
