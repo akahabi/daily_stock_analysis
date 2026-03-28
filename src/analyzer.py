@@ -51,14 +51,42 @@ from src.logging_config import is_sensitive_log_preview_enabled
 logger = logging.getLogger(__name__)
 
 _LLM_PREVIEW_MAX_CHARS = 240
+_LLM_SENSITIVE_ASSIGNMENT_VALUE_PATTERN = (
+    r"[^\s]+(?:\s+(?!(?:[\w.-]+|\"[^\"]+\"|'[^']+')\s*[:=])\S+)*"
+)
+_LLM_SENSITIVE_FIELD_NAME_PATTERN = (
+    r"x[_-]?api[_-]?key|api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|password|passwd|session[_-]?id"
+)
+
+
+def _redact_authorization_preview_value(value: str) -> str:
+    parts = str(value or "").strip().split(None, 1)
+    if len(parts) == 2 and parts[0]:
+        return f"{parts[0]} [REDACTED]"
+    return "[REDACTED]"
+
+
+def _replace_quoted_authorization_preview(match) -> str:
+    return (
+        f"{match.group(1)}{match.group(2)}{match.group(1)}"
+        f"{match.group(3)}{match.group(4)}"
+        f"{_redact_authorization_preview_value(match.group('value'))}"
+        f"{match.group(4)}"
+    )
+
+
+def _replace_authorization_preview(match) -> str:
+    return f"{match.group(1)}={_redact_authorization_preview_value(match.group('value'))}"
+
+
 _LLM_SENSITIVE_PATTERNS = (
     (
-        re.compile(r'(?i)(["\'])(authorization)\1\s*([:=])\s*(["\'])(bearer|basic)\s+(?:\\.|(?!\4).)*\4'),
-        r"\1\2\1\3\4\5 [REDACTED]\4",
+        re.compile(r'(?i)(["\'])(authorization)\1\s*([:=])\s*(["\'])(?P<value>(?:\\.|(?!\4).)*)\4'),
+        _replace_quoted_authorization_preview,
     ),
     (
-        re.compile(r"(?i)\b(authorization)\s*[:=]\s*(bearer|basic)\s+\S+"),
-        r"\1=\2 [REDACTED]",
+        re.compile(rf"(?i)\b(authorization)\s*[:=]\s*(?P<value>{_LLM_SENSITIVE_ASSIGNMENT_VALUE_PATTERN})"),
+        _replace_authorization_preview,
     ),
     (
         re.compile(r'(?i)(["\'])(cookie)\1\s*([:=])\s*(["\'])(?:\\.|(?!\4).)*\4'),
@@ -70,19 +98,19 @@ _LLM_SENSITIVE_PATTERNS = (
     ),
     (
         re.compile(
-            r'(?i)(["\'])(api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|password|passwd|session[_-]?id)\1\s*:\s*(["\'])(?:\\.|(?!\3).)*\3'
+            rf'(?i)(["\'])({_LLM_SENSITIVE_FIELD_NAME_PATTERN})\1\s*:\s*(["\'])(?:\\.|(?!\3).)*\3'
         ),
         r"\1\2\1:\3[REDACTED]\3",
     ),
     (
         re.compile(
-            r"(?i)\b(api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|password|passwd|session[_-]?id)\b\s*[:=]\s*(['\"])(?:\\.|(?!\2).)*\2"
+            rf"(?i)\b({_LLM_SENSITIVE_FIELD_NAME_PATTERN})\b\s*[:=]\s*(['\"])(?:\\.|(?!\2).)*\2"
         ),
         r"\1=\2[REDACTED]\2",
     ),
     (
         re.compile(
-            r"(?i)\b(api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|password|passwd|session[_-]?id)\b\s*[:=]\s*(?!['\"])([^\s]+(?:\s+(?!(?:[\w.-]+|\"[^\"]+\"|'[^']+')\s*[:=])\S+)*)"
+            rf"(?i)\b({_LLM_SENSITIVE_FIELD_NAME_PATTERN})\b\s*[:=]\s*(?!['\"])({_LLM_SENSITIVE_ASSIGNMENT_VALUE_PATTERN})"
         ),
         r"\1=[REDACTED]",
     ),

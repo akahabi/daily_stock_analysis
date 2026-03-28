@@ -229,6 +229,7 @@ def test_sanitize_llm_log_preview_redacts_single_quoted_credential_fields():
     [
         ("Authorization: Bearer raw-secret-token", "Authorization=Bearer [REDACTED]"),
         ("Authorization: Basic dXNlcjpwYXNz", "Authorization=Basic [REDACTED]"),
+        ("Authorization: Token abc123", "Authorization=Token [REDACTED]"),
     ],
 )
 def test_sanitize_llm_log_preview_redacts_authorization_headers(raw_preview, expected_preview):
@@ -243,6 +244,7 @@ def test_sanitize_llm_log_preview_redacts_authorization_headers(raw_preview, exp
     [
         ('{"authorization":"Bearer raw-secret-token"}', '{"authorization":"Bearer [REDACTED]"}'),
         ("{'authorization':'Basic dXNlcjpwYXNz'}", "{'authorization':'Basic [REDACTED]'}"),
+        ('{"authorization":"Token abc123"}', '{"authorization":"Token [REDACTED]"}'),
     ],
 )
 def test_sanitize_llm_log_preview_redacts_quoted_authorization_headers(raw_preview, expected_preview):
@@ -251,6 +253,20 @@ def test_sanitize_llm_log_preview_redacts_quoted_authorization_headers(raw_previ
     assert preview == expected_preview
     assert "raw-secret-token" not in preview
     assert "dXNlcjpwYXNz" not in preview
+
+
+@pytest.mark.parametrize(
+    ("raw_preview", "expected_preview"),
+    [
+        ('{"x-api-key":"sk-live-123456"}', '{"x-api-key":"[REDACTED]"}'),
+        ("{'x-api-key':'sk-live-123456'}", "{'x-api-key':'[REDACTED]'}"),
+    ],
+)
+def test_sanitize_llm_log_preview_redacts_quoted_x_api_key_fields(raw_preview, expected_preview):
+    preview = _sanitize_llm_log_preview(raw_preview)
+
+    assert preview == expected_preview
+    assert "sk-live-123456" not in preview
 
 
 @pytest.mark.parametrize(
