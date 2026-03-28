@@ -14,6 +14,7 @@ import pytest
 from src.analyzer import (
     AnalysisResult,
     GeminiAnalyzer,
+    _sanitize_llm_log_preview,
     _should_log_llm_content_preview,
 )
 from src.logging_config import (
@@ -155,6 +156,14 @@ def test_analyze_logs_only_redacted_single_line_preview_in_debug_mode(caplog, mo
     assert "open-sesame" not in caplog.text
     assert "..." in prompt_preview
     assert "..." in response_preview
+
+
+def test_sanitize_llm_log_preview_redacts_quoted_json_credential_fields():
+    preview = _sanitize_llm_log_preview('{"api_key":"sk-live-123456","password":"hunter2"}')
+
+    assert preview == '{"api_key":"[REDACTED]","password":"[REDACTED]"}'
+    assert "sk-live-123456" not in preview
+    assert "hunter2" not in preview
 
 
 def test_analyze_logs_actual_model_used_in_response_metadata(caplog, monkeypatch):
