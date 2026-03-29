@@ -381,7 +381,9 @@ def test_sanitize_llm_log_preview_redacts_quoted_cookie_headers(raw_preview, exp
     ("raw_preview", "expected_preview"),
     [
         ("cookie: csrftoken=xyz; foo=bar", "cookie=[REDACTED]"),
+        ("Cookie: session = abc123; theme=dark", "Cookie=[REDACTED]"),
         ("Set-Cookie: PHPSESSID=abc; Path=/", "Set-Cookie=[REDACTED]"),
+        ("Set-Cookie: PHPSESSID = abc; Path=/", "Set-Cookie=[REDACTED]"),
     ],
 )
 def test_sanitize_llm_log_preview_redacts_unquoted_cookie_headers(raw_preview, expected_preview):
@@ -389,7 +391,9 @@ def test_sanitize_llm_log_preview_redacts_unquoted_cookie_headers(raw_preview, e
 
     assert preview == expected_preview
     assert "csrftoken=xyz; foo=bar" not in preview
+    assert "session = abc123; theme=dark" not in preview
     assert "PHPSESSID=abc; Path=/" not in preview
+    assert "PHPSESSID = abc; Path=/" not in preview
 
 
 @pytest.mark.parametrize(

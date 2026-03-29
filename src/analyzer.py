@@ -116,7 +116,9 @@ _LLM_SENSITIVE_PATTERNS = (
         r"\1\2\1\3\4[REDACTED]\4",
     ),
     (
-        re.compile(r"(?i)\b(set-cookie|cookie)\s*[:=]\s*[^;\s]+(?:;[^\n\r]*)?"),
+        re.compile(
+            r"(?i)\b(set-cookie|cookie)\s*[:=]\s*[^;=\s]+(?:\s*=\s*[^;\s]+)?(?:\s*;\s*[^;\n\r]+(?:\s*=\s*[^;\n\r]+)?)*"
+        ),
         r"\1=[REDACTED]",
     ),
     (
