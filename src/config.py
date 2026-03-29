@@ -821,7 +821,7 @@ class Config:
         
         加载优先级：
         1. 大多数配置保持系统环境变量优先
-        2. WebUI 可写的运行期关键键允许持久化 `.env` 覆盖旧进程环境值
+        2. WebUI 可写的运行期关键键优先复用持久化 `.env`，但保留启动时显式进程环境变量的 override
         3. 代码中的默认值
         """
         cls._capture_bootstrap_runtime_env_overrides()
@@ -1701,7 +1701,7 @@ class Config:
 
     @classmethod
     def _capture_bootstrap_runtime_env_overrides(cls) -> None:
-        """Remember startup env values only when `.env` has no persisted copy yet."""
+        """Remember process-provided runtime env overrides before dotenv mutates os.environ."""
         if cls._BOOTSTRAP_RUNTIME_ENV_OVERRIDES_CAPTURED:
             return
 
@@ -1712,7 +1712,7 @@ class Config:
                 continue
 
             file_value = cls._get_env_file_value(key)
-            if file_value is None:
+            if file_value is None or env_value != file_value:
                 explicit_overrides.add(key)
 
         cls._BOOTSTRAP_RUNTIME_ENV_OVERRIDES = frozenset(explicit_overrides)

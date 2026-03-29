@@ -7,7 +7,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from src.config import Config
+from src.config import Config, setup_env
 
 
 class ConfigEnvCompatibilityTestCase(unittest.TestCase):
@@ -196,7 +196,7 @@ class ConfigEnvCompatibilityTestCase(unittest.TestCase):
         self.assertEqual(config.report_language, "en")
 
     @patch.object(Config, "_parse_litellm_yaml", return_value=[])
-    def test_runtime_mutable_keys_prefer_updated_env_file_over_stale_bootstrap_env(
+    def test_runtime_mutable_keys_reload_from_updated_env_file_after_runtime_refresh(
         self,
         _mock_parse_yaml,
     ) -> None:
@@ -242,6 +242,8 @@ class ConfigEnvCompatibilityTestCase(unittest.TestCase):
                     + "\n",
                     encoding="utf-8",
                 )
+                Config.reset_instance()
+                setup_env(override=True)
                 config = Config._load_from_env()
 
         self.assertEqual(config.stock_list, ["300750", "TSLA"])
@@ -251,7 +253,7 @@ class ConfigEnvCompatibilityTestCase(unittest.TestCase):
         self.assertTrue(config.schedule_run_immediately)
 
     @patch.object(Config, "_parse_litellm_yaml", return_value=[])
-    def test_runtime_mutable_keys_prefer_updated_env_file_on_first_load(
+    def test_runtime_mutable_keys_preserve_process_env_overrides_on_first_load(
         self,
         _mock_parse_yaml,
     ) -> None:
@@ -285,11 +287,11 @@ class ConfigEnvCompatibilityTestCase(unittest.TestCase):
             ):
                 config = Config._load_from_env()
 
-        self.assertEqual(config.stock_list, ["300750", "TSLA"])
-        self.assertTrue(config.schedule_enabled)
-        self.assertEqual(config.schedule_time, "09:30")
-        self.assertFalse(config.run_immediately)
-        self.assertTrue(config.schedule_run_immediately)
+        self.assertEqual(config.stock_list, ["600519", "000001"])
+        self.assertFalse(config.schedule_enabled)
+        self.assertEqual(config.schedule_time, "18:00")
+        self.assertTrue(config.run_immediately)
+        self.assertFalse(config.schedule_run_immediately)
 
     def test_parse_report_language_accepts_known_alias_without_warning(self) -> None:
         with self.assertNoLogs("src.config", level="WARNING"):
