@@ -152,6 +152,46 @@ class SchedulerBackgroundTaskTestCase(unittest.TestCase):
         self.assertEqual(fake_schedule.jobs[0].at_time, "18:00")
         self.assertEqual(scheduler.schedule_time, "18:00")
 
+    def test_scheduler_keeps_current_daily_job_when_schedule_time_provider_fails(self):
+        fake_schedule = _FakeScheduleModule()
+        with patch.dict(sys.modules, {"schedule": fake_schedule}):
+            from src.scheduler import Scheduler
+
+            provider_calls = {"count": 0}
+
+            def provider():
+                provider_calls["count"] += 1
+                if provider_calls["count"] == 1:
+                    return "09:30"
+                raise RuntimeError("boom")
+
+            scheduler = Scheduler(
+                schedule_time="18:00",
+                schedule_time_provider=provider,
+            )
+            scheduler.set_daily_task(lambda: None, run_immediately=False)
+
+            scheduler._refresh_daily_schedule_if_needed()
+            scheduler._refresh_daily_schedule_if_needed()
+
+        self.assertEqual(len(fake_schedule.jobs), 1)
+        self.assertEqual(fake_schedule.jobs[0].at_time, "09:30")
+        self.assertEqual(scheduler.schedule_time, "09:30")
+
+    def test_scheduler_rejects_invalid_initial_schedule_time(self):
+        fake_schedule = _FakeScheduleModule()
+        with patch.dict(sys.modules, {"schedule": fake_schedule}):
+            from src.scheduler import Scheduler
+
+            scheduler = Scheduler(schedule_time="25:99")
+            calls = []
+
+            with self.assertRaisesRegex(ValueError, "25:99"):
+                scheduler.set_daily_task(lambda: calls.append("ran"), run_immediately=True)
+
+        self.assertEqual(calls, [])
+        self.assertEqual(fake_schedule.jobs, [])
+
 
 if __name__ == "__main__":
     unittest.main()

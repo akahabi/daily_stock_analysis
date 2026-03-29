@@ -98,7 +98,8 @@ class Scheduler:
             run_immediately: 是否在设置后立即执行一次
         """
         self._task_callback = task
-        self._configure_daily_task(self.schedule_time)
+        if not self._configure_daily_task(self.schedule_time):
+            raise ValueError(f"无效的定时执行时间: {self.schedule_time!r}")
 
         if run_immediately:
             logger.info("立即执行一次任务...")

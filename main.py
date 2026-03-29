@@ -22,7 +22,13 @@ A股自选股智能分析系统 - 主调度程序
 - 买点偏好：缩量回踩 MA5/MA10 支撑
 """
 import os
+from pathlib import Path
+from typing import Dict
+
+from dotenv import dotenv_values
 from src.config import setup_env
+
+_INITIAL_PROCESS_ENV = dict(os.environ)
 setup_env()
 
 # 代理配置 - 通过 USE_PROXY 环境变量控制，默认关闭
@@ -52,6 +58,57 @@ from src.logging_config import setup_logging
 
 
 logger = logging.getLogger(__name__)
+_RUNTIME_ENV_FILE_KEYS = set()
+
+
+def _get_active_env_path() -> Path:
+    env_file = os.getenv("ENV_FILE")
+    if env_file:
+        return Path(env_file)
+    return Path(__file__).resolve().parent / ".env"
+
+
+def _read_active_env_values() -> Dict[str, str]:
+    env_path = _get_active_env_path()
+    if not env_path.exists():
+        return {}
+
+    try:
+        values = dotenv_values(env_path)
+    except Exception as exc:  # pragma: no cover - defensive branch
+        logger.warning("读取配置文件 %s 失败，继续沿用当前环境变量: %s", env_path, exc)
+        return {}
+
+    return {
+        str(key): "" if value is None else str(value)
+        for key, value in values.items()
+        if key is not None
+    }
+
+
+_RUNTIME_ENV_FILE_KEYS = {
+    key for key in _read_active_env_values()
+    if key not in _INITIAL_PROCESS_ENV
+}
+
+
+def _reload_env_file_values_preserving_overrides() -> None:
+    """Refresh `.env`-managed env vars without clobbering process env overrides."""
+    global _RUNTIME_ENV_FILE_KEYS
+
+    latest_values = _read_active_env_values()
+    managed_keys = {
+        key for key in latest_values
+        if key not in _INITIAL_PROCESS_ENV
+    }
+
+    for key in _RUNTIME_ENV_FILE_KEYS - managed_keys:
+        os.environ.pop(key, None)
+
+    for key in managed_keys:
+        os.environ[key] = latest_values[key]
+
+    _RUNTIME_ENV_FILE_KEYS = managed_keys
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -520,7 +577,7 @@ def _resolve_scheduled_stock_codes(stock_codes: Optional[List[str]]) -> Optional
 def _reload_runtime_config() -> Config:
     """Reload config from the latest persisted `.env` values for scheduled runs."""
     Config.reset_instance()
-    setup_env(override=True)
+    _reload_env_file_values_preserving_overrides()
     return get_config()
 
 
@@ -531,16 +588,7 @@ def _build_schedule_time_provider(default_schedule_time: str):
     manager = ConfigManager()
 
     def _provider() -> str:
-        try:
-            config_map = manager.read_config_map()
-        except Exception as exc:  # pragma: no cover - defensive branch
-            logger.warning(
-                "读取最新 SCHEDULE_TIME 失败，继续沿用启动值 %s: %s",
-                default_schedule_time,
-                exc,
-            )
-            return default_schedule_time
-
+        config_map = manager.read_config_map()
         schedule_time = (config_map.get("SCHEDULE_TIME", "") or "").strip()
         if schedule_time:
             return schedule_time

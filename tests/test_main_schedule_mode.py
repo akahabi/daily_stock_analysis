@@ -154,6 +154,50 @@ class MainScheduleModeTestCase(unittest.TestCase):
         )
         run_full_analysis.assert_called_once_with(runtime_config, args, None)
 
+    def test_reload_runtime_config_preserves_process_env_overrides(self) -> None:
+        self.env_path.write_text(
+            "OPENAI_API_KEY=stale-file\nSCHEDULE_TIME=09:30\n",
+            encoding="utf-8",
+        )
+        runtime_config = self._make_config(schedule_enabled=True, schedule_time="09:30")
+
+        with patch.dict(
+            os.environ,
+            {
+                "ENV_FILE": str(self.env_path),
+                "OPENAI_API_KEY": "runtime-secret",
+                "SCHEDULE_TIME": "18:00",
+            },
+            clear=False,
+        ), patch.object(
+            main,
+            "_INITIAL_PROCESS_ENV",
+            {"OPENAI_API_KEY": "runtime-secret"},
+        ), patch.object(
+            main,
+            "_RUNTIME_ENV_FILE_KEYS",
+            {"SCHEDULE_TIME"},
+        ), patch(
+            "main.get_config",
+            return_value=runtime_config,
+        ) as get_config_mock:
+            reloaded_config = main._reload_runtime_config()
+            self.assertEqual(os.environ["OPENAI_API_KEY"], "runtime-secret")
+            self.assertEqual(os.environ["SCHEDULE_TIME"], "09:30")
+
+        self.assertIs(reloaded_config, runtime_config)
+        get_config_mock.assert_called_once_with()
+
+    def test_schedule_time_provider_propagates_config_read_failures(self) -> None:
+        with patch(
+            "src.core.config_manager.ConfigManager.read_config_map",
+            side_effect=RuntimeError("boom"),
+        ):
+            provider = main._build_schedule_time_provider("18:00")
+
+            with self.assertRaisesRegex(RuntimeError, "boom"):
+                provider()
+
     def test_single_run_keeps_cli_stock_override(self) -> None:
         args = self._make_args(stocks="600519,000001")
         config = self._make_config(run_immediately=True)
