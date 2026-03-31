@@ -143,6 +143,8 @@ class StockAnalysisPipeline:
         normalized_code = normalize_stock_code(raw_code)
         if normalized_code:
             candidates.extend([normalized_code, normalized_code.upper()])
+        for c in list(candidates):
+            candidates.extend(self._hk_variants(c))
 
         seen = set()
         for candidate in candidates:
@@ -154,6 +156,18 @@ class StockAnalysisPipeline:
                 return name.strip()
 
         return ""
+
+    @staticmethod
+    def _hk_variants(code: str) -> List[str]:
+        """Return HK canonical variants so bare digits and HK-prefixed forms match."""
+        upper = code.upper()
+        variants: List[str] = []
+        if upper.startswith("HK") and upper[2:].isdigit() and 1 <= len(upper) - 2 <= 5:
+            bare = upper[2:].lstrip("0") or "0"
+            variants.append(bare.zfill(5))
+        elif upper.isdigit() and 1 <= len(upper) <= 5:
+            variants.append(f"HK{upper.zfill(5)}")
+        return variants
 
     def _build_manual_stock_name_lookup(self) -> Dict[str, str]:
         """Build a lookup map for raw and normalized stock-code forms."""
@@ -175,6 +189,8 @@ class StockAnalysisPipeline:
             normalized_candidate = normalize_stock_code(raw_candidate)
             if normalized_candidate:
                 candidates.extend([normalized_candidate, normalized_candidate.upper()])
+            for c in list(candidates):
+                candidates.extend(self._hk_variants(c))
 
             seen = set()
             for candidate in candidates:
@@ -202,6 +218,8 @@ class StockAnalysisPipeline:
         normalized_code = normalize_stock_code(raw_code)
         if normalized_code:
             candidates.extend([normalized_code, normalized_code.upper()])
+        for c in list(candidates):
+            candidates.extend(self._hk_variants(c))
 
         seen = set()
         for candidate in candidates:
@@ -213,8 +231,13 @@ class StockAnalysisPipeline:
                 return name.strip()
 
         if normalized_code:
+            normalized_hk = set()
+            normalized_hk.add(normalized_code)
+            for v in self._hk_variants(normalized_code):
+                normalized_hk.add(v)
             for candidate, name in overrides.items():
-                if normalize_stock_code(str(candidate or "").strip()) != normalized_code:
+                cn = normalize_stock_code(str(candidate or "").strip())
+                if cn not in normalized_hk:
                     continue
                 if isinstance(name, str) and name.strip():
                     return name.strip()

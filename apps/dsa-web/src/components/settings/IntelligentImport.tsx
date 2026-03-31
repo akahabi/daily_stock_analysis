@@ -57,6 +57,10 @@ function normalizeStockListCode(code: string): string {
   if (cnSuffixMatch) {
     return cnSuffixMatch[1];
   }
+  // Bare 1-5 digit codes are HK stocks (A-share codes are always 6 digits)
+  if (/^\d{1,5}$/.test(normalized)) {
+    return `HK${normalized.padStart(5, '0')}`;
+  }
   return normalized;
 }
 
