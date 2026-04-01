@@ -62,7 +62,28 @@ function fetchLatestRelease() {
   });
 }
 
+let _checkForUpdatesInFlight = null;
+let _lastCheckAt = 0;
+const UPDATE_CHECK_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
+
 async function checkForUpdates(silent = true) {
+  // Deduplicate concurrent calls: return the in-flight promise instead of starting a new one
+  if (_checkForUpdatesInFlight) {
+    return _checkForUpdatesInFlight;
+  }
+  // Throttle silent auto-checks within the cooldown window
+  const now = Date.now();
+  if (silent && _lastCheckAt > 0 && now - _lastCheckAt < UPDATE_CHECK_COOLDOWN_MS) {
+    return;
+  }
+  _lastCheckAt = now;
+  _checkForUpdatesInFlight = _doCheckForUpdates(silent).finally(() => {
+    _checkForUpdatesInFlight = null;
+  });
+  return _checkForUpdatesInFlight;
+}
+
+async function _doCheckForUpdates(silent) {
   try {
     const release = await fetchLatestRelease();
     const latestTag = (release.tag_name || '').trim();
