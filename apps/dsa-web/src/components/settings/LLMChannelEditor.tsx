@@ -134,6 +134,7 @@ const KNOWN_MODEL_PREFIXES = new Set([
 const FALSEY_VALUES = new Set(['0', 'false', 'no', 'off']);
 
 interface ChannelConfig {
+  id: string;
   name: string;
   protocol: ChannelProtocol;
   baseUrl: string;
@@ -621,13 +622,14 @@ function parseChannelsFromItems(items: Array<{ key: string; value: string }>): C
     .map((segment) => segment.trim())
     .filter(Boolean);
 
-  return channelNames.map((name) => {
+  return channelNames.map((name, index) => {
     const upperName = name.toUpperCase();
     const baseUrl = itemMap.get(`LLM_${upperName}_BASE_URL`) || '';
     const rawModels = itemMap.get(`LLM_${upperName}_MODELS`) || '';
     const models = splitModels(rawModels);
 
     return {
+      id: `parsed:${index}:${upperName}`,
       name: name.toLowerCase(),
       protocol: inferProtocol(itemMap.get(`LLM_${upperName}_PROTOCOL`) || '', baseUrl, models),
       baseUrl,
@@ -727,14 +729,16 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
   >(null);
   const [visibleKeys, setVisibleKeys] = useState<Record<number, boolean>>({});
   const [testStates, setTestStates] = useState<Record<number, ChannelTestState>>({});
-  const [discoveryStates, setDiscoveryStates] = useState<Record<number, ChannelDiscoveryState>>({});
+  const [discoveryStates, setDiscoveryStates] = useState<Record<string, ChannelDiscoveryState>>({});
   const [expandedRows, setExpandedRows] = useState<Record<number, boolean>>({});
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [addPreset, setAddPreset] = useState('aihubmix');
+  const addChannelIdRef = useRef(0);
 
   const prevChannelsRef = useRef(channelsFingerprint);
   const prevRuntimeRef = useRef(runtimeFingerprint);
-  const discoveryNonceRef = useRef<Record<number, number>>({});
+  const discoveryNonceRef = useRef<Record<string, number>>({});
+  const discoveryRequestIdRef = useRef(0);
 
   useEffect(() => {
     if (prevChannelsRef.current === channelsFingerprint && prevRuntimeRef.current === runtimeFingerprint) {
@@ -747,8 +751,8 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
     setVisibleKeys({});
     setTestStates({});
     setDiscoveryStates({});
-    discoveryNonceRef.current = {};
     setExpandedRows({});
+    discoveryNonceRef.current = {};
     setSaveMessage(null);
     setIsCollapsed(false);
   }, [channelsFingerprint, runtimeFingerprint, initialChannels, initialRuntimeConfig]);
@@ -821,24 +825,36 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
       return next;
     });
     if (field !== 'models' && field !== 'enabled') {
-      discoveryNonceRef.current = { ...discoveryNonceRef.current, [index]: (discoveryNonceRef.current[index] || 0) + 1 };
       setDiscoveryStates((previous) => {
-        if (!(index in previous)) {
+        const channel = channels.find((item, itemIndex) => itemIndex === index);
+        if (!channel || !(channel.id in previous)) {
           return previous;
         }
         const next = { ...previous };
-        delete next[index];
+        delete next[channel.id];
         return next;
       });
     }
   };
 
   const removeChannel = (index: number) => {
+    const removedChannelId = channels[index]?.id || '';
     setChannels((previous) => previous.filter((_, rowIndex) => rowIndex !== index));
     setVisibleKeys({});
     setTestStates({});
-    setDiscoveryStates({});
-    discoveryNonceRef.current = {};
+    setDiscoveryStates((previous) => {
+      if (!removedChannelId) {
+        return previous;
+      }
+      const next = { ...previous };
+      delete next[removedChannelId];
+      return next;
+    });
+    if (removedChannelId) {
+      const nextNonce = { ...discoveryNonceRef.current };
+      delete nextNonce[removedChannelId];
+      discoveryNonceRef.current = nextNonce;
+    }
     setExpandedRows({});
   };
 
@@ -857,6 +873,7 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
       return [
         ...previous,
         {
+          id: `added:${addChannelIdRef.current += 1}`,
           name: nextName,
           protocol: preset.protocol,
           baseUrl: preset.baseUrl,
@@ -971,15 +988,17 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
   };
 
   const handleDiscoverModels = async (channel: ChannelConfig, index: number) => {
-    const nonce = (discoveryNonceRef.current[index] || 0) + 1;
-    discoveryNonceRef.current[index] = nonce;
+    const requestId = discoveryRequestIdRef.current + 1;
+    discoveryRequestIdRef.current = requestId;
+    discoveryNonceRef.current[channel.id] = requestId;
+    const nonce = requestId;
 
     setDiscoveryStates((previous) => ({
       ...previous,
-      [index]: {
+      [channel.id]: {
         status: 'loading',
         text: '正在获取模型列表...',
-        models: previous[index]?.models || [],
+        models: previous[channel.id]?.models || [],
       },
     }));
 
@@ -989,30 +1008,31 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
         protocol: channel.protocol,
         baseUrl: channel.baseUrl,
         apiKey: channel.apiKey,
+        models: splitModels(channel.models),
       });
 
-      if (discoveryNonceRef.current[index] !== nonce) return;
+      if (discoveryNonceRef.current[channel.id] !== nonce) return;
 
       setDiscoveryStates((previous) => ({
         ...previous,
-        [index]: {
+        [channel.id]: {
           status: result.success ? 'success' : 'error',
           text: result.success
             ? `已获取 ${result.models.length} 个模型${result.latencyMs ? ` · ${result.latencyMs} ms` : ''}`
             : (result.error || result.message || '获取模型失败'),
-          models: result.success ? result.models : (previous[index]?.models || []),
+          models: result.success ? result.models : (previous[channel.id]?.models || []),
         },
       }));
     } catch (error: unknown) {
-      if (discoveryNonceRef.current[index] !== nonce) return;
+      if (discoveryNonceRef.current[channel.id] !== nonce) return;
 
       const parsed = getParsedApiError(error);
       setDiscoveryStates((previous) => ({
         ...previous,
-        [index]: {
+        [channel.id]: {
           status: 'error',
           text: parsed.message || '获取模型失败',
-          models: previous[index]?.models || [],
+          models: previous[channel.id]?.models || [],
         },
       }));
     }
@@ -1108,14 +1128,14 @@ export const LLMChannelEditor: React.FC<LLMChannelEditorProps> = ({
               </div>
             ) : channels.map((channel, index) => (
               <ChannelRow
-                key={index}
+                key={channel.id}
                 channel={channel}
                 index={index}
                 busy={busy}
                 visibleKey={Boolean(visibleKeys[index])}
                 expanded={Boolean(expandedRows[index])}
                 testState={testStates[index]}
-                discoveryState={discoveryStates[index]}
+                discoveryState={discoveryStates[channel.id]}
                 onUpdate={updateChannel}
                 onRemove={removeChannel}
                 onToggleExpand={toggleExpand}

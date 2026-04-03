@@ -101,6 +101,7 @@ function toSnakeDiscoverModelsPayload(payload: DiscoverLLMChannelModelsRequest):
     protocol: payload.protocol,
     base_url: payload.baseUrl ?? '',
     api_key: payload.apiKey ?? '',
+    models: payload.models,
     timeout_seconds: payload.timeoutSeconds ?? 20,
   };
 }
