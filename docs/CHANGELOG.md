@@ -25,8 +25,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - [文档] FAQ 补充 Ollama `OllamaException / APIConnectionError` 连接失败排障条目（Q12c），覆盖服务未启动、URL 配置错误、模型前缀缺失、模型未下载、远程防火墙等 5 个检查点
 - [修复] 技能加载异常被静默吞没问题 — 在 ask.py、skills/aggregator.py、skills/router.py 的静默 except 块补充 logger.warning 日志，确保技能列表为空时有日志可查（fixes #970）
 
-- [修复] 修复技能加载异常被静默吞没问题，补充 warning 日志
-
 ## [3.12.0] - 2026-04-01
 
 ### 发布亮点
