@@ -324,6 +324,35 @@ def _build_timeout_result(
     )
 
 
+def _build_budget_guard_result(
+    *,
+    start_time: float,
+    step: int,
+    tool_calls_log: List[Dict[str, Any]],
+    total_tokens: int,
+    provider_used: str,
+    models_used: List[str],
+    messages: List[Dict[str, Any]],
+    remaining_timeout_s: float,
+    min_step_budget_s: float,
+) -> RunLoopResult:
+    elapsed = time.time() - start_time
+    return RunLoopResult(
+        success=False,
+        content="",
+        tool_calls_log=tool_calls_log,
+        total_steps=step,
+        total_tokens=total_tokens,
+        provider=provider_used,
+        models_used=models_used,
+        error=(
+            "Agent step skipped due to insufficient budget: "
+            f"{remaining_timeout_s:.2f}s remaining, minimum {min_step_budget_s:.1f}s required"
+        ),
+        messages=messages,
+    )
+
+
 # ============================================================
 # Core loop
 # ============================================================
@@ -379,23 +408,35 @@ def run_agent_loop(
 
     for step in range(max_steps):
         remaining_timeout = _remaining_timeout_seconds(start_time, max_wall_clock_seconds)
-        budget_exhausted = (
-            remaining_timeout is not None
-            and (
-                remaining_timeout <= 0
-                or (step > 0 and remaining_timeout <= _MIN_STEP_BUDGET_S)
-            )
+        timeout_exhausted = remaining_timeout is not None and remaining_timeout <= 0
+        budget_guard_triggered = (
+            not timeout_exhausted
+            and remaining_timeout is not None
+            and step > 0
+            and remaining_timeout <= _MIN_STEP_BUDGET_S
         )
-        if budget_exhausted:
-            if remaining_timeout <= 0:
-                logger.warning("Agent timed out before step %d", step + 1)
-            else:
+        if timeout_exhausted or budget_guard_triggered:
+            if budget_guard_triggered:
                 logger.warning(
-                    "Agent budget too low for step %d (%.1fs remaining, min %.1fs) — treating as timeout",
+                    "Agent budget too low for step %d (%.1fs remaining, min %.1fs)",
                     step + 1,
                     remaining_timeout,
                     _MIN_STEP_BUDGET_S,
                 )
+                return _build_budget_guard_result(
+                    start_time=start_time,
+                    step=step,
+                    tool_calls_log=tool_calls_log,
+                    total_tokens=total_tokens,
+                    provider_used=provider_used,
+                    models_used=models_used,
+                    messages=messages,
+                    remaining_timeout_s=remaining_timeout,
+                    min_step_budget_s=_MIN_STEP_BUDGET_S,
+                )
+
+            if remaining_timeout <= 0:
+                logger.warning("Agent timed out before step %d", step + 1)
             return _build_timeout_result(
                 start_time=start_time,
                 max_wall_clock_seconds=float(max_wall_clock_seconds),

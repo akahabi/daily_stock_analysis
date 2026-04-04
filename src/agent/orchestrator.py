@@ -152,6 +152,51 @@ class AgentOrchestrator:
             model=model,
         )
 
+    def _build_budget_skip_result(
+        self,
+        stats: AgentRunStats,
+        all_tool_calls: List[Dict[str, Any]],
+        models_used: List[str],
+        elapsed_s: float,
+        timeout_s: int,
+        stage_name: str,
+        remaining_budget: float,
+        min_stage_budget_s: int,
+        ctx: Optional[AgentContext] = None,
+        parse_dashboard: bool = True,
+    ) -> OrchestratorResult:
+        """Build a result for budget-insufficient stage skip (non-timeout semantics)."""
+        stats.total_duration_s = round(elapsed_s, 2)
+        stats.models_used = list(dict.fromkeys(models_used))
+        dashboard = None
+        content = ""
+        if ctx is not None:
+            dashboard, content = self._resolve_final_output(ctx, parse_dashboard=parse_dashboard)
+            if parse_dashboard and dashboard is not None:
+                dashboard = self._mark_partial_dashboard(
+                    dashboard,
+                    note="多 Agent 预算不足，以下结论基于已完成阶段自动降级生成。",
+                )
+                ctx.set_data("final_dashboard", dashboard)
+                content = json.dumps(dashboard, ensure_ascii=False, indent=2)
+
+        return OrchestratorResult(
+            success=bool(content) if (not parse_dashboard or dashboard is not None) else False,
+            content=content,
+            dashboard=dashboard,
+            error=(
+                f"Pipeline skipped before stage '{stage_name}' due to insufficient budget "
+                f"({remaining_budget:.1f}s remaining, minimum {min_stage_budget_s}s required)"
+            ),
+            stats=stats,
+            total_steps=stats.total_stages,
+            total_tokens=stats.total_tokens,
+            tool_calls_log=all_tool_calls,
+            provider=stats.models_used[0] if stats.models_used else "",
+            model=", ".join(stats.models_used),
+        )
+
+
     def _prepare_agent(self, agent: Any) -> Any:
         """Apply orchestrator-level runtime settings to a child agent."""
         if hasattr(agent, "max_steps"):
@@ -318,17 +363,22 @@ class AgentOrchestrator:
             agent = agents[index]
             elapsed_s = time.time() - t0
             remaining_budget = timeout_s - elapsed_s if timeout_s else None
-            budget_exhausted = (
+            stage_min_budget_s = (
+                _MIN_STAGE_BUDGET_S
+            )
+            timeout_exhausted = (
                 timeout_s
                 and remaining_budget is not None
-                and (
-                    remaining_budget <= 0
-                    or (index > 0 and remaining_budget < _MIN_STAGE_BUDGET_S)
-                )
+                and remaining_budget <= 0
             )
-            if budget_exhausted:
-                reason = "timed out" if remaining_budget <= 0 else f"insufficient budget ({remaining_budget:.1f}s < {_MIN_STAGE_BUDGET_S}s)"
-                logger.error("[Orchestrator] pipeline %s before stage '%s'", reason, agent.agent_name)
+            budget_guard_triggered = (
+                timeout_s
+                and remaining_budget is not None
+                and index > 0
+                and remaining_budget < stage_min_budget_s
+            )
+            if timeout_exhausted:
+                logger.error("[Orchestrator] pipeline timed out before stage '%s'", agent.agent_name)
                 if progress_callback:
                     progress_callback({
                         "type": "pipeline_timeout",
@@ -342,6 +392,33 @@ class AgentOrchestrator:
                     models_used,
                     elapsed_s,
                     timeout_s,
+                    ctx=ctx,
+                    parse_dashboard=parse_dashboard,
+                )
+
+            if budget_guard_triggered:
+                logger.warning(
+                    "[Orchestrator] pipeline insufficient budget before stage '%s' (%.1fs remaining, min %ds)",
+                    agent.agent_name,
+                    remaining_budget,
+                    stage_min_budget_s,
+                )
+                if progress_callback:
+                    progress_callback({
+                        "type": "pipeline_timeout",
+                        "stage": agent.agent_name,
+                        "elapsed": round(elapsed_s, 2),
+                        "timeout": timeout_s,
+                    })
+                return self._build_budget_skip_result(
+                    stats,
+                    all_tool_calls,
+                    models_used,
+                    elapsed_s,
+                    timeout_s,
+                    agent.agent_name,
+                    remaining_budget,
+                    stage_min_budget_s,
                     ctx=ctx,
                     parse_dashboard=parse_dashboard,
                 )
