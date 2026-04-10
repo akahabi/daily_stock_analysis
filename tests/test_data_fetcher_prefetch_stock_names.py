@@ -84,12 +84,29 @@ class TestPrefetchStockNames(unittest.TestCase):
         manager._fetchers = [remote_fetcher]
         manager.get_realtime_quote = MagicMock()
 
-        name = DataFetcherManager.get_stock_name(manager, "600519", allow_realtime=False)
+        with patch("data_provider.base.get_index_stock_name", return_value=None):
+            name = DataFetcherManager.get_stock_name(manager, "600519", allow_realtime=False)
 
         self.assertEqual(name, "贵州茅台")
         manager.get_realtime_quote.assert_not_called()
         remote_fetcher.get_stock_name.assert_not_called()
         self.assertEqual(manager._stock_name_cache["600519"], "贵州茅台")
+
+    def test_get_stock_name_prefers_index_mapping_before_remote_fetchers(self):
+        manager = DataFetcherManager.__new__(DataFetcherManager)
+        remote_fetcher = MagicMock()
+        remote_fetcher.name = "RemoteFetcher"
+        remote_fetcher.get_stock_name.return_value = "远程名称"
+        manager._fetchers = [remote_fetcher]
+        manager.get_realtime_quote = MagicMock()
+
+        with patch("data_provider.base.get_index_stock_name", return_value="索引名称"):
+            name = DataFetcherManager.get_stock_name(manager, "123456", allow_realtime=False)
+
+        self.assertEqual(name, "索引名称")
+        manager.get_realtime_quote.assert_not_called()
+        remote_fetcher.get_stock_name.assert_not_called()
+        self.assertEqual(manager._stock_name_cache["123456"], "索引名称")
 
     def test_get_stock_name_preserves_raw_exchange_hint_for_realtime_lookup(self):
         manager = DataFetcherManager.__new__(DataFetcherManager)
