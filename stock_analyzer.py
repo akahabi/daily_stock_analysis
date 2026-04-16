@@ -56,7 +56,7 @@ def get_stock_data(ticker: str, period_days: int = 60) -> Optional[pd.DataFrame]
 
 def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Compute basic technical indicators: SMA, EMA, and daily return.
+    Compute basic technical indicators: SMA, EMA, RSI, and daily return.
 
     Args:
         df: DataFrame with at least a 'Close' column
@@ -69,6 +69,14 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df["SMA_20"] = df["Close"].rolling(window=20).mean()
     df["EMA_12"] = df["Close"].ewm(span=12, adjust=False).mean()
     df["Daily_Return"] = df["Close"].pct_change() * 100
+
+    # Added RSI_14 - useful for spotting overbought/oversold conditions
+    delta = df["Close"].diff()
+    gain = delta.clip(lower=0).rolling(window=14).mean()
+    loss = (-delta.clip(upper=0)).rolling(window=14).mean()
+    rs = gain / loss
+    df["RSI_14"] = 100 - (100 / (1 + rs))
+
     return df
 
 
@@ -93,10 +101,6 @@ def generate_summary(ticker: str, df: pd.DataFrame) -> dict:
         "sma_20": round(latest["SMA_20"], 2) if pd.notna(latest["SMA_20"]) else None,
         "ema_12": round(latest["EMA_12"], 2) if pd.notna(latest["EMA_12"]) else None,
         "daily_return_pct": round(latest["Daily_Return"], 2) if pd.notna(latest["Daily_Return"]) else None,
+        "rsi_14": round(latest["RSI_14"], 2) if pd.notna(latest["RSI_14"]) else None,
     }
     return summary
-
-
-def analyze_tickers(tickers: list[str]) -> list[dict]:
-    """
-    Run full analysi
