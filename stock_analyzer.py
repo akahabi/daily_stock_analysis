@@ -26,13 +26,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def get_stock_data(ticker: str, period_days: int = 30) -> Optional[pd.DataFrame]:
+def get_stock_data(ticker: str, period_days: int = 60) -> Optional[pd.DataFrame]:
     """
     Fetch historical stock data for a given ticker symbol.
 
     Args:
         ticker: Stock ticker symbol (e.g., 'AAPL', 'TSLA')
-        period_days: Number of days of historical data to fetch
+        period_days: Number of days of historical data to fetch (default increased
+                     to 60 so SMA_20 has enough data points from the start)
 
     Returns:
         DataFrame with OHLCV data or None on failure
@@ -98,32 +99,4 @@ def generate_summary(ticker: str, df: pd.DataFrame) -> dict:
 
 def analyze_tickers(tickers: list[str]) -> list[dict]:
     """
-    Run full analysis pipeline for a list of ticker symbols.
-
-    Args:
-        tickers: List of stock ticker symbols
-
-    Returns:
-        List of summary dictionaries
-    """
-    results = []
-    for ticker in tickers:
-        logger.info(f"Analyzing {ticker}...")
-        df = get_stock_data(ticker)
-        if df is None:
-            continue
-        df = compute_indicators(df)
-        summary = generate_summary(ticker, df)
-        results.append(summary)
-        logger.info(f"Summary for {ticker}: {summary}")
-    return results
-
-
-if __name__ == "__main__":
-    raw_tickers = os.getenv("TICKERS", "AAPL,MSFT,TSLA")
-    ticker_list = [t.strip().upper() for t in raw_tickers.split(",") if t.strip()]
-    logger.info(f"Starting daily analysis for: {ticker_list}")
-    summaries = analyze_tickers(ticker_list)
-    print("\n=== Daily Stock Analysis ===")
-    for s in summaries:
-        print(s)
+    Run full analysi
