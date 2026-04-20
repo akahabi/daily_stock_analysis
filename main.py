@@ -23,8 +23,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-DEFAULT_TICKERS = os.getenv("TICKERS", "AAPL,MSFT,GOOGL,AMZN,TSLA").split(",")
-DEFAULT_PERIOD = os.getenv("ANALYSIS_PERIOD", "6mo")
+# Personal watchlist - stocks I'm currently tracking
+DEFAULT_TICKERS = os.getenv("TICKERS", "AAPL,MSFT,NVDA,META,TSLA").split(",")
+DEFAULT_PERIOD = os.getenv("ANALYSIS_PERIOD", "1y")
 DEFAULT_OUTPUT_DIR = os.getenv("OUTPUT_DIR", "reports")
 
 
@@ -95,36 +96,3 @@ def save_report(results: list[dict], output_dir: str) -> Path:
 def main() -> int:
     args = parse_args()
     logging.getLogger().setLevel(args.log_level)
-
-    tickers = [t.strip().upper() for t in args.tickers if t.strip()]
-    if not tickers:
-        logger.error("No tickers provided. Exiting.")
-        return 1
-
-    logger.info("Starting analysis for %d ticker(s): %s", len(tickers), ", ".join(tickers))
-
-    results = []
-    for ticker in tickers:
-        try:
-            result = analyze_ticker(ticker, args.period)
-            results.append(result)
-        except Exception as exc:  # pylint: disable=broad-except
-            logger.error("Failed to analyze %s: %s", ticker, exc)
-            results.append({"ticker": ticker, "error": str(exc)})
-
-    if args.output in ("stdout", "both"):
-        print(json.dumps(results, indent=2, default=str))
-
-    if args.output in ("json", "both"):
-        save_report(results, args.output_dir)
-
-    errors = [r for r in results if "error" in r]
-    if errors:
-        logger.warning("%d ticker(s) had errors.", len(errors))
-
-    logger.info("Analysis complete.")
-    return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
