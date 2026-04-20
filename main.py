@@ -24,8 +24,9 @@ logger = logging.getLogger(__name__)
 
 
 # Personal watchlist - stocks I'm currently tracking
-DEFAULT_TICKERS = os.getenv("TICKERS", "AAPL,MSFT,NVDA,META,TSLA").split(",")
-DEFAULT_PERIOD = os.getenv("ANALYSIS_PERIOD", "1y")
+# Added GOOGL and AMD to keep an eye on alongside the usual suspects
+DEFAULT_TICKERS = os.getenv("TICKERS", "AAPL,MSFT,NVDA,META,TSLA,GOOGL,AMD").split(",")
+DEFAULT_PERIOD = os.getenv("ANALYSIS_PERIOD", "6mo")  # changed from 1y; 6mo feels more actionable
 DEFAULT_OUTPUT_DIR = os.getenv("OUTPUT_DIR", "reports")
 
 
@@ -94,5 +95,4 @@ def save_report(results: list[dict], output_dir: str) -> Path:
 
 
 def main() -> int:
-    args = parse_args()
-    logging.getLogger().setLevel(args.log_level)
+    args = parse_ar
