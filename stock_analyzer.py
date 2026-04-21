@@ -56,7 +56,7 @@ def get_stock_data(ticker: str, period_days: int = 90) -> Optional[pd.DataFrame]
 
 def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Compute basic technical indicators: SMA, EMA, RSI, and daily return.
+    Compute basic technical indicators: SMA, EMA, RSI, MACD, and daily return.
 
     Args:
         df: DataFrame with at least a 'Close' column
@@ -76,6 +76,11 @@ def compute_indicators(df: pd.DataFrame) -> pd.DataFrame:
     loss = (-delta.clip(upper=0)).rolling(window=14).mean()
     rs = gain / loss
     df["RSI_14"] = 100 - (100 / (1 + rs))
+
+    # Added MACD (12/26 EMA crossover) and signal line - handy for momentum checks
+    ema_26 = df["Close"].ewm(span=26, adjust=False).mean()
+    df["MACD"] = df["EMA_12"] - ema_26
+    df["MACD_Signal"] = df["MACD"].ewm(span=9, adjust=False).mean()
 
     return df
 
