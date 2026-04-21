@@ -26,14 +26,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def get_stock_data(ticker: str, period_days: int = 60) -> Optional[pd.DataFrame]:
+def get_stock_data(ticker: str, period_days: int = 90) -> Optional[pd.DataFrame]:
     """
     Fetch historical stock data for a given ticker symbol.
 
     Args:
         ticker: Stock ticker symbol (e.g., 'AAPL', 'TSLA')
-        period_days: Number of days of historical data to fetch (default increased
-                     to 60 so SMA_20 has enough data points from the start)
+        period_days: Number of days of historical data to fetch (bumped to 90
+                     so RSI_14 and SMA_20 both have comfortable warm-up periods)
 
     Returns:
         DataFrame with OHLCV data or None on failure
@@ -98,9 +98,4 @@ def generate_summary(ticker: str, df: pd.DataFrame) -> dict:
         "close": round(latest["Close"], 2),
         "volume": int(latest["Volume"]),
         "sma_5": round(latest["SMA_5"], 2) if pd.notna(latest["SMA_5"]) else None,
-        "sma_20": round(latest["SMA_20"], 2) if pd.notna(latest["SMA_20"]) else None,
-        "ema_12": round(latest["EMA_12"], 2) if pd.notna(latest["EMA_12"]) else None,
-        "daily_return_pct": round(latest["Daily_Return"], 2) if pd.notna(latest["Daily_Return"]) else None,
-        "rsi_14": round(latest["RSI_14"], 2) if pd.notna(latest["RSI_14"]) else None,
-    }
-    return summary
+     
