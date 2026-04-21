@@ -26,7 +26,8 @@ logger = logging.getLogger(__name__)
 # Personal watchlist - stocks I'm currently tracking
 # Added GOOGL and AMD to keep an eye on alongside the usual suspects
 # Also added INTC - watching for a potential turnaround play
-DEFAULT_TICKERS = os.getenv("TICKERS", "AAPL,MSFT,NVDA,META,TSLA,GOOGL,AMD,INTC").split(",")
+# Added ASML and TSM - expanding into semiconductor equipment/foundry names
+DEFAULT_TICKERS = os.getenv("TICKERS", "AAPL,MSFT,NVDA,META,TSLA,GOOGL,AMD,INTC,ASML,TSM").split(",")
 DEFAULT_PERIOD = os.getenv("ANALYSIS_PERIOD", "6mo")  # changed from 1y; 6mo feels more actionable
 DEFAULT_OUTPUT_DIR = os.getenv("OUTPUT_DIR", "reports")
 
@@ -88,5 +89,4 @@ def save_report(results: list[dict], output_dir: str) -> Path:
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     report_file = out_path / f"stock_report_{timestamp}.json"
 
-    with report_file.open("w", encoding="utf-8") as fh:
-        json.dump(results, fh, indent=2, de
+    with report_file.open("w", en
