@@ -36,3 +36,4 @@ pytest-cov>=4.1.0
 
 # Dev tools (personal additions)
 ipython>=8.14.0
+jupyter>=1.0.0  # added for interactive exploration in notebooks
